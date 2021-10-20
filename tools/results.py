@@ -16,14 +16,16 @@ def data_of_interest(names,interest=[],exclude=[]):
                 if keep: to_plot.append(dat)
     return to_plot
 
-def rnai_response(interest,exclude,n_boot=1e3,statistic=np.median,regeneration=False):
+def rnai_response(interest,exclude,n_boot=1e3,statistic=np.median,regeneration=False, drugs=False):
     if regeneration:
         return rnai_response_regen(interest,exclude,n_boot,statistic)
     name = 'data/LDS_response_rnai.pickle'
+    if drugs:
+        name = 'data/LDS_response_drugs.pickle'
     with open(name,'rb') as f:
         result = pickle.load(f)
     to_plot = data_of_interest(result.keys(),interest,exclude)
-    
+    print(to_plot)
     tot=len(to_plot)
     fig, ax=plt.subplots(nrows=tot, sharex=True, sharey=True,figsize=(8,4*len(to_plot)))
     if tot==1:
@@ -70,7 +72,7 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
         else:
             ref.append('standard_5s2h')
     day_shift = [0 for d in data]
-    fig, ax = plt.subplots(ncols=len(data),nrows=len(result[(data[0])]),sharex=True,sharey=True,figsize=(8,12))
+    fig, ax = plt.subplots(ncols=len(data),nrows=len(result[(data[0])]),sharex=True,sharey=True,figsize=(4*len(data),12))
     if len(data)==1:
         ax=ax[:,None]
     if len (ref)==1:
@@ -107,6 +109,66 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
     for a in ax:
         a[0].set_yticks([0,1,2])
     return fig,ax
+
+def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,drugs=False):
+    '''compiles 5s and 30s data for given genes of interest and layers on plot'''
+    name = 'data/LDS_response_rnai.pickle'
+    if drugs:
+        name = 'data/LDS_response_drugs.pickle'
+    with open(name,'rb') as f:
+        result = pickle.load(f)
+    
+    fig, ax=plt.subplots(nrows=2, sharex=True, sharey=True,figsize=(6,8))
+    #reference
+    for num in range(2):
+        if num==0:
+            xp=result['tau']-5/60
+            yp_ref = result['WT']
+        if num==1:
+            xp=result['tau']-.5
+            yp_ref=result['WT_30s']
+        y,rng = bootstrap_traces(yp_ref,n_boot=n_boot,statistic=statistic)
+        ax[num].plot(xp,y,lw=1,color='grey',zorder=-2,alpha=.6)
+        ax[num].fill_between(xp,*rng,alpha=.2,color='grey',lw=0,edgecolor='None', zorder=-1)
+        ax[num].set_ylim(0,2)
+        ax[num].set_yticks([0,1,2])
+        ax[num].plot([0,0],[0,5],c='k',ls=':')
+
+    for i,interest in enumerate(interest_list):
+        c=plt.cm.Set1(i/9)
+        for num in range(2):
+            exclude_this = exclude.copy() 
+            if num==0:
+                exclude_this.extend(['_30s','_1s'])
+                xp=result['tau']-5/60
+                yp_ref = result['WT']
+            if num==1:
+                exclude_this.extend(['_1s'])
+                interest = interest+'_30s'
+                xp=result['tau']-.5
+                yp_ref=result['WT_30s']
+            if not '+' in interest:
+                exclude_this.append('+')
+            to_plot = data_of_interest(result.keys(),[interest],exclude_this)
+            print(to_plot)
+            
+            yp=[]
+            for dat in to_plot:
+                yp.extend(result[dat])
+            yp = np.array(yp)
+#             print(yp.shape)
+            y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
+            ax[num].plot(xp,y,label=f'{interest} ({yp.shape[0]})',lw=1,color=c,)
+            ax[num].fill_between(xp,*rng,alpha=.1,color=c,lw=0,edgecolor='None')
+            ax[num].legend()
+            num+=1
+    
+    
+    plt.xlabel('time (min)')
+    ax[len(ax)//2].set_ylabel('Z')
+    plt.xlim(-3,10)
+    return fig, ax
+
 
 def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
                                integrate=10*120,pool=12,color_scheme = None):
@@ -174,7 +236,7 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
                 t_plot.append(t)
             t_plot = np.array(t_plot) * result[cond]['spacing'] + result[cond]['initial'] 
             if color_scheme is None:
-                if 'WT' in cond and not 'vibe' in cond:
+                if 'WT' in cond and not ('vibe' in cond or 'Pharynx' in cond):
                     x_st = cond.find('hpa_')
                     x_en = cond[x_st:].find('s')
                     c = plt.cm.gray_r((float(cond[x_st+4:x_st+x_en])+5)/40)
