@@ -103,4 +103,13 @@ def bootstrap_relative(data1, data2, operator=np.subtract, sample_size=None, sta
     return np.mean(bootstrap), [np.percentile(bootstrap,(100-conf_interval)/2),
                                     np.percentile(bootstrap,conf_interval+(100-conf_interval)/2)]
 
+def bootstrap(data,sample_size=None,statistic=np.median,conf_interval=95,n_boot=1e5):
+        if sample_size is None:
+            sample_size = data.size
+        bootstrap = []    
+        for i in range(int(n_boot)):
+            bootstrap.append(statistic(np.random.choice(data,sample_size)))
+        
+        return np.mean(bootstrap), [np.percentile(bootstrap,(100-conf_interval)/2),
+                                    np.percentile(bootstrap,conf_interval+(100-conf_interval)/2)]
 
