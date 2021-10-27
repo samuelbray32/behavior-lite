@@ -340,25 +340,30 @@ def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.med
         ax[0].plot(tp,y,c=c,label=f'{condition[0]}s{condition[1]}s_n{n}_{condition[2]}iti, ({yp.shape[0]})',lw=1)
         ax[0].fill_between(tp,*rng,alpha=.1,color=c,lw=0,edgecolor='None')
         #plot integrated
-        integrate = 30
         loc = np.where(tp==0)[0][0]
         y = []
         lo = []
         hi = []
         for n_i in range(n):
-            val = yp[:,loc:loc+integrate].mean(axis=1)
-            y_i, rng = bootstrap(val,n_boot=n_boot)
+            val = yp[:,loc:loc+integrate*2].mean(axis=1)
+            y_i, rng = bootstrap(val,n_boot=n_boot*10)
             y.append(y_i)
             lo.append(rng[0])
             hi.append(rng[1])
             loc += condition[1]*2
-        xp = np.arange(len(y))
+        xp = np.arange(len(y))*condition[1]/60
         ax[1].scatter(xp,y,color=c)
         ax[1].plot(xp,y,color=c,ls=':')
         ax[1].fill_between(xp,lo,hi,alpha=.1,facecolor=c,zorder=-1)
         
-            
-    ax[0].set_xlim(-2,25)
+    if norm_time:        
+        ax[0].set_xlim(-2,1.25*n)
+        ax[0].set_xlabel('time/isi')
+    else:
+        ax[0].set_xlim(-2,n*np.max(isi)/60*1.25)
+        ax[0].set_xlabel('time (min)')
+    ax[0].set_ylabel('Activity')
+    ax[1].set_ylabel(f'total response (0-{integrate}s post pulse')
     ax[0].set_ylim(0,1.5)
     ax[0].legend()
     return fig, ax
