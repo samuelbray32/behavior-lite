@@ -285,11 +285,15 @@ def data_of_interest_pulseTrain(result,pulse,isi,iti,n,interest=[],exclude=[],fr
     return to_plot
 
 def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.median,integrate=60,trial_rng=(0,12),
-               color_scheme = plt.cm.viridis, exclude=['regen'],norm_time=False):
+               color_scheme = plt.cm.viridis, exclude=['regen'],norm_time=False,ax=None,color=None,fig=None):
     #load data
     name = 'data/LDS_response_pulseTrain.pickle'
     with open(name,'rb') as f:
         result = pickle.load(f)
+    #check that variables provided are list
+    if not type(pulse) is list: pulse=[pulse]
+    if not type(isi) is list: isi=[isi]
+    if not type(iti) is list: iti=[iti]
     #manage which variable is being scanned
     sweep = None
     sweep_ind = None
@@ -317,17 +321,25 @@ def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.med
     condition = [pulse[0],isi[0],iti[0]]
     
     #Plot
-    fig,ax=plt.subplots(ncols=2,sharey=True,figsize=(12,8))
+    if ax is None:
+        fig,ax=plt.subplots(ncols=2,sharey=True,figsize=(12,8))
     for i,var in enumerate(sweep):
         condition[sweep_ind]=var
-        c = color_scheme(i/len(sweep))
+        if color is None:
+            c = color_scheme(i/len(sweep))
+        else:
+            c = color
         #find matching datasets
         to_plot = data_of_interest_pulseTrain(result,*condition,n,interest=['WT'],exclude=exclude,framerate=2)
+        n_i=n
+        if condition[0]==condition[1]:
+            to_plot=['101921WT_1s1s_n300_2hITI']
+            n_i=300
         yp = result[to_plot[0]]['data']
         for dat in to_plot[1:]:
             for j,val in enumerate(result[dat]['data']):
                 if len(yp)>j:
-                    yp[j].extend(val)
+                    yp[j]=np.append(yp[j],val,axis=0)
                 else:
                     yp.append(val)
         yp = np.concatenate(yp[trial_rng[0]:trial_rng[1]])
@@ -337,21 +349,21 @@ def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.med
         tp=result['tau'].copy()
         if norm_time:
             tp = tp/condition[1]*60
-        ax[0].plot(tp,y,c=c,label=f'{condition[0]}s{condition[1]}s_n{n}_{condition[2]}iti, ({yp.shape[0]})',lw=1)
+        ax[0].plot(tp,y,c=c,label=f'{condition[0]}s{condition[1]}s_n{n}_{condition[2]}hiti, ({yp.shape[0]})',lw=1)
         ax[0].fill_between(tp,*rng,alpha=.1,color=c,lw=0,edgecolor='None')
         #plot integrated
         loc = np.where(tp==0)[0][0]
         y = []
         lo = []
         hi = []
-        for n_i in range(n):
+        for n_i in range(n_i):
             val = yp[:,loc:loc+integrate*2].mean(axis=1)
             y_i, rng = bootstrap(val,n_boot=n_boot*10)
             y.append(y_i)
             lo.append(rng[0])
             hi.append(rng[1])
-            loc += condition[1]*2
-        xp = np.arange(len(y))*condition[1]/60
+            loc += int(condition[1]*2)
+        xp = np.arange(len(y))
         ax[1].scatter(xp,y,color=c)
         ax[1].plot(xp,y,color=c,ls=':')
         ax[1].fill_between(xp,lo,hi,alpha=.1,facecolor=c,zorder=-1)
@@ -362,16 +374,67 @@ def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.med
     else:
         ax[0].set_xlim(-2,n*np.max(isi)/60*1.25)
         ax[0].set_xlabel('time (min)')
+    ax[1].set_xlabel('pulse number')
     ax[0].set_ylabel('Activity')
     ax[1].set_ylabel(f'total response (0-{integrate}s post pulse')
     ax[0].set_ylim(0,1.5)
     ax[0].legend()
     return fig, ax
 
-
-
-
-
+def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statistic=np.median,integrate=60,
+                              trial_rng=(0,100),pool=6,color_scheme=plt.cm.cool, norm_time=False):
+    #load data
+    name = 'data/LDS_response_pulseTrain.pickle'
+    with open(name,'rb') as f:
+        result = pickle.load(f)
+    to_plot = data_of_interest(result.keys(),interest,exclude)
+    #plot it
+    fig, ax = plt.subplots(nrows=len(to_plot),ncols=2,sharey=True,figsize=(12,6*len(to_plot)))
+    for i,(dat,a) in enumerate(zip(to_plot,ax)):
+        data = result[dat]['data']
+        # put in control
+        pulseTrain_WT(pulse=result[dat]['pulse']/2,
+                      isi=(result[dat]['delay']+result[dat]['pulse'])/2,
+                      n_boot=n_boot,norm_time=norm_time,trial_rng=(3,50),n=result[dat]['n'],
+                      integrate=30,exclude=['regen',],ax=a,color='grey') #TODO-don't hardcode integrate?
+        for j in np.arange(*trial_rng,pool):
+            c = color_scheme(j/trial_rng[1])
+            if j>=len(data): break
+            yp = np.concatenate(data[j:j+pool])
+            y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
+            tp=result['tau'].copy()
+            if norm_time:
+                tp = tp/condition[1]*60
+            a[0].plot(tp,y,c=c,label=j,lw=1)
+            a[0].fill_between(tp,*rng,alpha=.1,color=c,lw=0,edgecolor='None')
+            a[0].set_xlim(-5,15)
+            a[0].set_title(dat)
+            
+            #plot integrated
+            n_i = result[dat]['n']
+            loc = np.where(tp==0)[0][0]
+            y = []
+            lo = []
+            hi = []
+            for n_i in range(n_i):
+                val = yp[:,loc:loc+integrate*2].mean(axis=1)
+                y_i, rng = bootstrap(val,n_boot=n_boot*10)
+                y.append(y_i)
+                lo.append(rng[0])
+                hi.append(rng[1])
+                loc += 60 #todo: dont hardcode (sorry its frday at 5:30)
+            xp = np.arange(len(y))
+            a[1].scatter(xp,y,color=c)
+            a[1].plot(xp,y,color=c,ls=':')
+            a[1].fill_between(xp,lo,hi,alpha=.1,facecolor=c,zorder=-1)
+            a[0].set_ylim(0,1.5)
+            if i<len(to_plot)-1:
+                a[0].set_xlabel('')
+                a[1].set_xlabel('')
+                a[0].set_ylabel('')
+                a[1].set_ylabel('')
+            
+    return fig,ax
 
 
 
