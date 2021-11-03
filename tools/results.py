@@ -151,6 +151,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
             if not '+' in interest:
                 exclude_this.append('+')
             to_plot = data_of_interest(result.keys(),[interest],exclude_this)
+            if len(to_plot)==0: continue
             print(to_plot)
             
             yp=[]
@@ -322,7 +323,7 @@ def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.med
     
     #Plot
     if ax is None:
-        fig,ax=plt.subplots(ncols=2,sharey=True,figsize=(12,8))
+        fig,ax=plt.subplots(ncols=2,sharey=True,figsize=(16,8))
     for i,var in enumerate(sweep):
         condition[sweep_ind]=var
         if color is None:
@@ -379,6 +380,9 @@ def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.med
     ax[1].set_ylabel(f'total response (0-{integrate}s post pulse')
     ax[0].set_ylim(0,1.5)
     ax[0].legend()
+    sweep_names = ['pulse','ISI','ITI']
+    if not fig is None:
+        fig.suptitle(f'variable {sweep_names[sweep_ind]}')
     return fig, ax
 
 def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statistic=np.median,integrate=60,
@@ -390,6 +394,8 @@ def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statis
     to_plot = data_of_interest(result.keys(),interest,exclude)
     #plot it
     fig, ax = plt.subplots(nrows=len(to_plot),ncols=2,sharey=True,figsize=(12,6*len(to_plot)))
+    if len(to_plot)==1:
+        ax=ax[None,:]
     for i,(dat,a) in enumerate(zip(to_plot,ax)):
         data = result[dat]['data']
         # put in control
@@ -424,7 +430,7 @@ def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statis
                 hi.append(rng[1])
                 loc += 60 #todo: dont hardcode (sorry its frday at 5:30)
             xp = np.arange(len(y))
-            a[1].scatter(xp,y,color=c)
+            a[1].scatter(xp,y,color=c,label=j//pool)
             a[1].plot(xp,y,color=c,ls=':')
             a[1].fill_between(xp,lo,hi,alpha=.1,facecolor=c,zorder=-1)
             a[0].set_ylim(0,1.5)
