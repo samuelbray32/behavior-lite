@@ -285,8 +285,15 @@ def data_of_interest_pulseTrain(result,pulse,isi,iti,n,interest=[],exclude=[],fr
                 if keep: to_plot.append(dat)
     return to_plot
 
-def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.median,integrate=60,trial_rng=(0,12),
-               color_scheme = plt.cm.viridis, exclude=['regen'],norm_time=False,ax=None,color=None,fig=None):
+def pulseTrain_WT(**kwargs):
+    '''deprecated version of pulse train. should be able to remove...'''
+    return pulseTrain(**kwargs)
+
+def pulseTrain(pulse=[1,], isi=[30,], iti=[2,], n=20, n_boot=1e3, statistic=np.median, integrate=30,
+                  trial_rng=(0,12), color_scheme=plt.cm.viridis, interest=['WT'], exclude=['regen'], norm_time=False, 
+                  ax=None, color=None, fig=None):
+    '''Multifunctional tool. can sweep through pulse isi or iti for given gene condition.
+    Alternatively, can return the compiled result for a given gene condition (see: call in pulseTrain_rnai'''
     #load data
     name = 'data/LDS_response_pulseTrain.pickle'
     with open(name,'rb') as f:
@@ -298,7 +305,7 @@ def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.med
     #manage which variable is being scanned
     sweep = None
     sweep_ind = None
-    error1 = 'pulseTrain_WT only accepts 1 swept variable at a time. please check that at most one variable list is >len(1)'
+    error1 = 'pulseTrain only accepts 1 swept variable at a time. please check that at most one variable list is >len(1)'
     if len(pulse)>1:
         sweep = pulse.copy()
         sweep_ind=0
@@ -331,9 +338,10 @@ def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.med
         else:
             c = color
         #find matching datasets
-        to_plot = data_of_interest_pulseTrain(result,*condition,n,interest=['WT'],exclude=exclude,framerate=2)
+        to_plot = data_of_interest_pulseTrain(result,*condition,n,interest=interest,exclude=exclude,framerate=2)
+        if len(to_plot)==0:continue
         n_i=n
-        if condition[0]==condition[1]:
+        if condition[0]==condition[1]: #TODO: resolve better?
             to_plot=['101921WT_1s1s_n300_2hITI']
             n_i=300
         yp = result[to_plot[0]]['data']
@@ -350,7 +358,7 @@ def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.med
         tp=result['tau'].copy()
         if norm_time:
             tp = tp/condition[1]*60
-        ax[0].plot(tp,y,c=c,label=f'{condition[0]}s{condition[1]}s_n{n}_{condition[2]}hiti, ({yp.shape[0]})',lw=1)
+        ax[0].plot(tp,y,c=c,label=f'{interest[0]}_{condition[0]}s{condition[1]}s_n{n}_{condition[2]}hiti, ({yp.shape[0]})',lw=1)
         ax[0].fill_between(tp,*rng,alpha=.1,color=c,lw=0,edgecolor='None')
         #plot integrated
         loc = np.where(tp==0)[0][0]
@@ -385,8 +393,27 @@ def pulseTrain_WT(pulse=[1,],isi=[30,],iti=[2,],n=20,n_boot=1e3,statistic=np.med
         fig.suptitle(f'variable {sweep_names[sweep_ind]}')
     return fig, ax
 
+def pulseTrain_rnai(interest=[], exclude=['regen'],pulse=1, isi=30, iti=2, n=20, n_boot=1e3,
+                    statistic=np.median, integrate=30, trial_rng=(0,100), norm_time=False):
+    '''plots knockdown pule train overlayed on WT'''
+    #load data
+    name = 'data/LDS_response_pulseTrain.pickle'
+    with open(name,'rb') as f:
+        result = pickle.load(f)
+    #plot WT
+    fig, ax = pulseTrain(pulse=pulse, isi=isi, n_boot=n_boot, norm_time=norm_time, trial_rng=trial_rng, n=n,
+               integrate=integrate, exclude=exclude, color='grey')
+    #plot each gene
+    for i,name in enumerate(interest):
+        pulseTrain(interest=[name], pulse=pulse, isi=isi, n_boot=n_boot, norm_time=norm_time, trial_rng=trial_rng, n=n,
+                   integrate=integrate, exclude=exclude, ax=ax, color=plt.cm.Set1(i/9)) 
+    #plot details
+    fig.suptitle('')
+    return fig,ax
+        
 def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statistic=np.median,integrate=60,
                               trial_rng=(0,100),pool=6,color_scheme=plt.cm.cool, norm_time=False):
+    '''plots pooled, time-dependent pulse train on whole worm WT control'''
     #load data
     name = 'data/LDS_response_pulseTrain.pickle'
     with open(name,'rb') as f:
@@ -399,7 +426,7 @@ def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statis
     for i,(dat,a) in enumerate(zip(to_plot,ax)):
         data = result[dat]['data']
         # put in control
-        pulseTrain_WT(pulse=result[dat]['pulse']/2,
+        pulseTrain(pulse=result[dat]['pulse']/2,
                       isi=(result[dat]['delay']+result[dat]['pulse'])/2,
                       n_boot=n_boot,norm_time=norm_time,trial_rng=(3,50),n=result[dat]['n'],
                       integrate=30,exclude=['regen',],ax=a,color='grey') #TODO-don't hardcode integrate?
@@ -438,8 +465,7 @@ def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statis
                 a[0].set_xlabel('')
                 a[1].set_xlabel('')
                 a[0].set_ylabel('')
-                a[1].set_ylabel('')
-            
+                a[1].set_ylabel('')            
     return fig,ax
 
 
