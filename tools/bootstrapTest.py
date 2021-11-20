@@ -89,26 +89,53 @@ def bootstrap_traces(data, sample_size=None, statistic=np.mean,
 
 
     
-def bootstrap_relative(data1, data2, operator=np.subtract, sample_size=None, statistic=np.median,
+def bootstrap_compare(data1, data2, operator=np.subtract, measurement=None, sample_size=None, statistic=np.mean,
                        n_boot=1e3, conf_interval=95,):
+    '''bootstap comparison of samples from 2 datasets'''
+    #measurement: the value being calculated from samples (see measurement.py)
+    #    ***for efficiency, precalculate measurement and use None value for non-population averaged measures
+    #operator: how we compare the measurements
+    #statistic: what value of the distribution of operator results we care about (*irrelevant for population based measures)
     if sample_size is None:
-        sample_size = data1.shape[0]
-    bootstrap = []    
+        sample_size = data1.shape[0]#min(data1.shape[0],data2.shape[0])
+    if measurement is None:
+        measurement = lambda x: x
+    bootstrap = []
     for i in tqdm(range(int(n_boot)),position=0,leave=True):
+#     for i in range(int(n_boot)):
         bootstrap.append(statistic(
-            operator(np.random.choice(data1,sample_size),
-                     np.random.choice(data2,sample_size))
+            operator(measurement(data1[np.random.choice(np.arange(data1.shape[0]),sample_size)]),
+                     measurement(data2[np.random.choice(np.arange(data2.shape[0]),sample_size)])
+                    )
             ))
     bootstrap = np.array(bootstrap)
     return np.mean(bootstrap), [np.percentile(bootstrap,(100-conf_interval)/2),
                                     np.percentile(bootstrap,conf_interval+(100-conf_interval)/2)]
 
+def bootstrap_diff(data1, data2, measurement=None, sample_size=None, statistic=np.mean,
+                       n_boot=1e3, conf_interval=95,):
+        y,rng = bootstrap_compare(data1, data2, np.subtract, measurement, sample_size, statistic,n_boot, conf_interval,)
+        if rng[0]>0 or rng[1]<0:
+            return y, rng, True
+        else:
+            return y, rng, False
+        
+def bootstrap_relative(data1, data2, measurement=None, sample_size=None, statistic=np.mean,
+                       n_boot=1e3, conf_interval=95,):
+        y,rng = bootstrap_compare(data1, data2, np.divide, measurement, sample_size, statistic,n_boot, conf_interval,)
+        if rng[0]>1 or rng[1]<1:
+            return y, rng, True
+        else:
+            return y, rng, False
+
+
 def bootstrap(data,sample_size=None,statistic=np.median,conf_interval=95,n_boot=1e5):
         if sample_size is None:
-            sample_size = data.size
+            sample_size = data.shape[0]
         bootstrap = []    
         for i in range(int(n_boot)):
-            bootstrap.append(statistic(np.random.choice(data,sample_size)))
+#             bootstrap.append(statistic(np.random.choice(data,sample_size)))
+            bootstrap.append(statistic(data[np.random.choice(np.arange(data.shape[0]),sample_size)]))
         
         return np.mean(bootstrap), [np.percentile(bootstrap,(100-conf_interval)/2),
                                     np.percentile(bootstrap,conf_interval+(100-conf_interval)/2)]

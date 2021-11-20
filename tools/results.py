@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
-from .bootstrapTest import bootstrap_traces
-from .bootstrapTest import bootstrapTest
-from .bootstrapTest import bootstrap
+from .bootstrapTest import bootstrap_traces, bootstrapTest, bootstrap
+from .bootstrapTest import bootstrap_diff, bootstrap_relative
+from .measurements import adaptationTime, peakResponse, totalResponse, responseDuration
 
 def data_of_interest(names,interest=[],exclude=[]):
     to_plot = []
@@ -17,7 +17,7 @@ def data_of_interest(names,interest=[],exclude=[]):
                 if keep: to_plot.append(dat)
     return to_plot
 
-def rnai_response(interest,exclude,n_boot=1e3,statistic=np.median,regeneration=False, drugs=False):
+def rnai_response(interest,exclude,n_boot=1e3,statistic=np.median,regeneration=False, drugs=False,):
     if regeneration:
         return rnai_response_regen(interest,exclude,n_boot,statistic)
     name = 'data/LDS_response_rnai.pickle'
@@ -111,16 +111,31 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
         a[0].set_yticks([0,1,2])
     return fig,ax
 
-def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,drugs=False):
+def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,drugs=False,
+                          measure_compare=None,ind_measure=[totalResponse,],
+                          pop_measure=[adaptationTime,peakResponse,responseDuration]):
     '''compiles 5s and 30s data for given genes of interest and layers on plot'''
     name = 'data/LDS_response_rnai.pickle'
     if drugs:
         name = 'data/LDS_response_drugs.pickle'
     with open(name,'rb') as f:
         result = pickle.load(f)
+    #keys for measure_compare
+    DIFFERENCE = ['diff','difference','subtract']
+    RELATIVE = ['relative','rel','divide']
+    #significance marker
+    def mark_sig(ax,loc,c='grey'):
+        ax.scatter([loc,],12,marker='*',color=c)
+    #give extra n_boot to measurements
+    n_boot_meas = max(n_boot, 3e2)
     
-    fig, ax=plt.subplots(nrows=2, sharex=True, sharey=True,figsize=(6,8))
+    fig, ax_all=plt.subplots(nrows=2, ncols=2, sharex='col', sharey='col',figsize=(12,8))
+    ax = ax_all[:,0]
+    ax2 = ax_all[:,1]
+    tic_loc = []
+    tic_name=[]
     #reference
+    Y_REF = []
     for num in range(2):
         if num==0:
             xp=result['tau']-5/60
@@ -128,13 +143,48 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
         if num==1:
             xp=result['tau']-.5
             yp_ref=result['WT_30s']
+        Y_REF.append(yp_ref)
         y,rng = bootstrap_traces(yp_ref,n_boot=n_boot,statistic=statistic)
-        ax[num].plot(xp,y,lw=1,color='grey',zorder=-2,alpha=.6)
+        ax[num].plot(xp,y,lw=1,color='grey',zorder=-2,alpha=.6,label=f'WT {yp_ref.shape[0]}')
         ax[num].fill_between(xp,*rng,alpha=.2,color='grey',lw=0,edgecolor='None', zorder=-1)
         ax[num].set_ylim(0,2)
         ax[num].set_yticks([0,1,2])
         ax[num].plot([0,0],[0,5],c='k',ls=':')
-
+        #calculate reference population statistics
+        for n_m, M in enumerate(pop_measure):
+            loc=np.argmin(xp**2)
+#             y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot,statistic=M)
+            if measure_compare in DIFFERENCE:
+                y,rng,significant = bootstrap_diff(yp_ref[:,loc:loc+10*120],yp_ref[:,loc:loc+10*120]
+                                           ,n_boot=n_boot_meas,measurement=M)
+            elif measure_compare in RELATIVE:
+                y,rng,significant = bootstrap_relative(yp_ref[:,loc:loc+10*120],yp_ref[:,loc:loc+10*120]
+                                           ,n_boot=n_boot_meas,measurement=M)
+            else:
+                y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M)
+            x_loc = n_m#n_m*(len(interest_list)+1)
+            ax2[num].scatter([x_loc],[y],color='grey')
+            ax2[num].plot([x_loc,x_loc],rng,color='grey')
+            tic_loc.append(x_loc)
+            tic_name.append(M.__name__)
+            
+        #calculate reference individual statistics
+        for n_m2, M in enumerate(ind_measure):
+            loc=np.argmin(xp**2)
+            value = M(yp_ref[:,loc:loc+10*120])
+            if measure_compare in DIFFERENCE:
+                y,rng,significant = bootstrap_diff(value,value,n_boot=n_boot_meas,measurement=None)
+            elif measure_compare in RELATIVE:
+                y,rng,significant = bootstrap_relative(value,value,n_boot=n_boot_meas,measurement=None)
+            else:    
+                y,rng = bootstrap(value,n_boot=n_boot_meas)
+       
+            x_loc2 = n_m2+x_loc+1#n_m2*(len(interest_list)+1) + x_loc +1
+            ax2[num].scatter([x_loc2],[y],color='grey')
+            ax2[num].plot([x_loc2,x_loc2],rng,color='grey')
+            tic_loc.append(x_loc2)
+            tic_name.append(M.__name__)
+            
     for i,interest in enumerate(interest_list):
         c=plt.cm.Set1(i/9)
         for num in range(2):
@@ -158,17 +208,58 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
             for dat in to_plot:
                 yp.extend(result[dat])
             yp = np.array(yp)
-#             print(yp.shape)
             y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
             ax[num].plot(xp,y,label=f'{interest} ({yp.shape[0]})',lw=1,color=c,)
             ax[num].fill_between(xp,*rng,alpha=.1,color=c,lw=0,edgecolor='None')
             ax[num].legend()
-            num+=1
+            #calculate population based statistics
+            for n_m, M in enumerate(pop_measure):
+                loc=np.argmin(xp**2)
+                if measure_compare in DIFFERENCE:
+                    y,rng,significant = bootstrap_diff(yp[:,loc:loc+10*120],Y_REF[num][:,loc:loc+10*120]
+                                               ,n_boot=n_boot_meas,measurement=M)
+                elif measure_compare in RELATIVE:
+                    y,rng,significant = bootstrap_relative(yp[:,loc:loc+10*120],Y_REF[num][:,loc:loc+10*120]
+                                               ,n_boot=n_boot_meas,measurement=M)
+                else:
+                    y,rng = bootstrap(yp[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M)
+                    significant=False
+                x_loc= n_m + (i+1)*.07   #n_m*(len(interest_list)+1)+i+1
+                ax2[num].scatter([x_loc],[y],color=c)
+                ax2[num].plot([x_loc,x_loc],rng,color=c)
+                if significant:
+                    mark_sig(ax2[num],x_loc,c=c)
+            #calculate individual based
+            for n_m2, M in enumerate(ind_measure):
+                loc=np.argmin(xp**2)
+                value = M(yp[:,loc:loc+10*120])
+                value_ref = M(Y_REF[num][:,loc:loc+10*120])
+                if measure_compare in DIFFERENCE:
+                    y,rng,significant = bootstrap_diff(value,value_ref,n_boot=n_boot_meas,measurement=None)
+                elif measure_compare in RELATIVE:
+                    y,rng,significant = bootstrap_relative(value,value_ref,n_boot=n_boot_meas,measurement=None)
+                else:    
+                    y,rng = bootstrap(value,n_boot=n_boot_meas)
+                    significant=False
+                x_loc2 = len(pop_measure) + n_m2 + (i+1)*.07  #n_m2*(len(interest_list)+1)+i+1 + x_loc +1
+                ax2[num].scatter([x_loc2],[y],color=c)
+                ax2[num].plot([x_loc2,x_loc2],rng,color=c)
+                if significant:
+                    mark_sig(ax2[num],x_loc2,c=c)
     
-    
-    plt.xlabel('time (min)')
+    ax2[-1].set_xticks(tic_loc)
+    ax2[-1].set_xticklabels(tic_name)
+    ax[-1].set_xlabel('time (min)')
     ax[len(ax)//2].set_ylabel('Z')
-    plt.xlim(-3,10)
+    ax[0].set_xlim(-3,10)
+    if measure_compare in RELATIVE:
+        ax2[-1].set_ylabel('<M(RNAi)/M(WT)>')
+        ax2[0].set_yscale('log')
+    elif measure_compare in DIFFERENCE:
+        ax2[-1].set_ylabel('<M(RNAi) - M(WT)>')
+    else:
+        ax2[-1].set_ylabel('M(gene)')
+    ax2[-1].set_xlabel('M')
     return fig, ax
 
 
