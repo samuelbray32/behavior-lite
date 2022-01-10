@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 import pickle
 from .bootstrapTest import bootstrap_traces, bootstrapTest, bootstrap
 from .bootstrapTest import bootstrap_diff, bootstrap_relative
-from .measurements import adaptationTime, peakResponse, totalResponse, responseDuration
+from .measurements import adaptationTime, peakResponse, totalResponse, totalResponse_pop, responseDuration
+from .measurements import sensitization,sensitizationRate, habituation,habituationRate, tPeak
 
 def data_of_interest(names,interest=[],exclude=[]):
     to_plot = []
@@ -79,7 +80,7 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
     if len (ref)==1:
         ref = [ref[0] for r in data]
 
-    for i in range(len(data)):  
+    for i in range(len(data)):
         ax[0,i].set_title(data[i])
         for j in range(len (result[(data[i])])):
             xp = result['tau']
@@ -89,7 +90,7 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
             y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
             ax[j+day_shift[i],i].plot(xp,y,label=j, color=plt.cm.cool(j/7))
             ax[j+day_shift[i],i].fill_between(xp,*rng,alpha=.3,edgecolor=None,facecolor=plt.cm.cool(j/7))
-        for j in range(len(result[ref[i]])):   
+        for j in range(len(result[ref[i]])):
             yp=(result[ref[i]][j])
             y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
             ax[j,i].plot(xp,y,color='grey',zorder=-1)
@@ -99,11 +100,11 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
             ax[j,i].spines['right'].set_visible(False)
             if i>0:
                 ax[j,i].spines['left'].set_visible(False)
-    fig.suptitle('regen control')    
+    fig.suptitle('regen control')
     #    ax[j].legend()
     plt.xlim(-3,20)
     plt.ylim(-.1,2)
-    #plt.yscale('log')    
+    #plt.yscale('log')
     ax[len(ax)//2,0].set_ylabel('Z')
     ax[-1,ax.shape[1]//2].set_xlabel('time (min)')
 
@@ -112,8 +113,8 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
     return fig,ax
 
 def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,drugs=False,
-                          measure_compare=None,ind_measure=[totalResponse,],
-                          pop_measure=[adaptationTime,peakResponse,responseDuration]):
+                          measure_compare=None,ind_measure=[],
+                          pop_measure=[adaptationTime,peakResponse,totalResponse_pop]):
     '''compiles 5s and 30s data for given genes of interest and layers on plot'''
     name = 'data/LDS_response_rnai.pickle'
     if drugs:
@@ -128,7 +129,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
         ax.scatter([loc,],12,marker='*',color=c)
     #give extra n_boot to measurements
     n_boot_meas = max(n_boot, 3e2)
-    
+
     fig, ax_all=plt.subplots(nrows=2, ncols=2, sharex='col', sharey='col',figsize=(12,8))
     ax = ax_all[:,0]
     ax2 = ax_all[:,1]
@@ -167,7 +168,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
             ax2[num].plot([x_loc,x_loc],rng,color='grey')
             tic_loc.append(x_loc)
             tic_name.append(M.__name__)
-            
+
         #calculate reference individual statistics
         for n_m2, M in enumerate(ind_measure):
             loc=np.argmin(xp**2)
@@ -176,19 +177,19 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 y,rng,significant = bootstrap_diff(value,value,n_boot=n_boot_meas,measurement=None)
             elif measure_compare in RELATIVE:
                 y,rng,significant = bootstrap_relative(value,value,n_boot=n_boot_meas,measurement=None)
-            else:    
+            else:
                 y,rng = bootstrap(value,n_boot=n_boot_meas)
-       
+
             x_loc2 = n_m2+x_loc+1#n_m2*(len(interest_list)+1) + x_loc +1
             ax2[num].scatter([x_loc2],[y],color='grey')
             ax2[num].plot([x_loc2,x_loc2],rng,color='grey')
             tic_loc.append(x_loc2)
             tic_name.append(M.__name__)
-            
+
     for i,interest in enumerate(interest_list):
         c=plt.cm.Set1(i/9)
         for num in range(2):
-            exclude_this = exclude.copy() 
+            exclude_this = exclude.copy()
             if num==0:
                 exclude_this.extend(['_30s','_1s'])
                 xp=result['tau']-5/60
@@ -203,7 +204,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
             to_plot = data_of_interest(result.keys(),[interest],exclude_this)
             if len(to_plot)==0: continue
             print(to_plot)
-            
+
             yp=[]
             for dat in to_plot:
                 yp.extend(result[dat])
@@ -238,7 +239,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                     y,rng,significant = bootstrap_diff(value,value_ref,n_boot=n_boot_meas,measurement=None)
                 elif measure_compare in RELATIVE:
                     y,rng,significant = bootstrap_relative(value,value_ref,n_boot=n_boot_meas,measurement=None)
-                else:    
+                else:
                     y,rng = bootstrap(value,n_boot=n_boot_meas)
                     significant=False
                 x_loc2 = len(pop_measure) + n_m2 + (i+1)*.07  #n_m2*(len(interest_list)+1)+i+1 + x_loc +1
@@ -246,7 +247,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 ax2[num].plot([x_loc2,x_loc2],rng,color=c)
                 if significant:
                     mark_sig(ax2[num],x_loc2,c=c)
-    
+
     ax2[-1].set_xticks(tic_loc)
     ax2[-1].set_xticklabels(tic_name)
     ax[-1].set_xlabel('time (min)')
@@ -281,7 +282,7 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
     integrate = isi
     pulse_list = [0,]
     sh = []
-    
+
     n_pulse=len(pulse_list)
     fig, ax = plt.subplots(nrows=n_pulse,sharex=True,figsize=(12,8))
     if n_pulse==1:
@@ -297,7 +298,7 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
                 data = bootstrapTest('reference', [response,], tau=tau,
                                       n_pulse=max(pulse_list)+1, isi=isi,
                                       integrate_time=integrate,experiment_list=None)
-                y,rng = data.canonical_estimate([0,pulse],sample_size=None, 
+                y,rng = data.canonical_estimate([0,pulse],sample_size=None,
                                                 statistic=statistic, n_boot=n_boot)
                 y_ref = y.copy()
                 if not subtract_ref:
@@ -327,7 +328,7 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
                 lo.append(rng[0])
                 hi.append(rng[1])
                 t_plot.append(t)
-            t_plot = np.array(t_plot) * result[cond]['spacing'] + result[cond]['initial'] 
+            t_plot = np.array(t_plot) * result[cond]['spacing'] + result[cond]['initial']
             if color_scheme is None:
                 if 'WT' in cond and not ('vibe' in cond or 'Pharynx' in cond):
                     x_st = cond.find('hpa_')
@@ -353,13 +354,13 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
 
 #     if subtract_ref:
 #         plt.plot(t_plot,0*t_plot,c='k',alpha=.5,ls='-.' )
-    plt.legend()   
-    plt.xlabel('hours') 
-    plt.ylabel(f'integrated activity 0-{isi/120} min')  
-    # plt.ylabel(f'log10 [integrated activity 0-{isi/120} min] / [wholeworm value]')    
+    plt.legend()
+    plt.xlabel('hours')
+    plt.ylabel(f'integrated activity 0-{isi/120} min')
+    # plt.ylabel(f'log10 [integrated activity 0-{isi/120} min] / [wholeworm value]')
     plt.xlim(0,175)
     return fig, ax
-
+###############################################################################################
 def data_of_interest_pulseTrain(result,pulse,isi,iti,n,interest=[],exclude=[],framerate=2):
     to_plot = []
     names=result.keys()
@@ -375,16 +376,17 @@ def data_of_interest_pulseTrain(result,pulse,isi,iti,n,interest=[],exclude=[],fr
                 if not result[dat]['n']==n: keep=False
                 if keep: to_plot.append(dat)
     return to_plot
-
+###############################################################################################
 def pulseTrain_WT(**kwargs):
     '''deprecated version of pulse train. should be able to remove...'''
     return pulseTrain(**kwargs)
 
 def pulseTrain(pulse=[1,], isi=[30,], iti=[2,], n=20, n_boot=1e3, statistic=np.median, integrate=30,
-                  trial_rng=(0,12), color_scheme=plt.cm.viridis, interest=['WT'], exclude=['regen'], norm_time=False, 
-                  ax=None, color=None, fig=None):
+               trial_rng=(0,12), color_scheme=plt.cm.viridis, interest=['WT'], exclude=['regen'],
+               norm_time=False, ax=None, color=None, fig=None, shift=0,
+               measurements=[sensitization, sensitizationRate, habituation, habituationRate, tPeak]):
     '''Multifunctional tool. can sweep through pulse isi or iti for given gene condition.
-    Alternatively, can return the compiled result for a given gene condition (see: call in pulseTrain_rnai'''
+    Alternatively, can return the compiled result for a given gene condition (see: call in pulseTrain_rnai)'''
     #load data
     name = 'data/LDS_response_pulseTrain.pickle'
     with open(name,'rb') as f:
@@ -418,10 +420,11 @@ def pulseTrain(pulse=[1,], isi=[30,], iti=[2,], n=20, n_boot=1e3, statistic=np.m
         sweep = pulse.copy()
         sweep_ind=0
     condition = [pulse[0],isi[0],iti[0]]
-    
+
     #Plot
     if ax is None:
-        fig,ax=plt.subplots(ncols=2,sharey=True,figsize=(16,8))
+        fig,ax=plt.subplots(ncols=3,sharey=False,figsize=(16,8))
+        ax[0].get_shared_y_axes().join(ax[0], ax[1])
     for i,var in enumerate(sweep):
         condition[sweep_ind]=var
         if color is None:
@@ -456,8 +459,10 @@ def pulseTrain(pulse=[1,], isi=[30,], iti=[2,], n=20, n_boot=1e3, statistic=np.m
         y = []
         lo = []
         hi = []
+        Values =[]
         for n_i in range(n_i):
             val = yp[:,loc:loc+integrate*2].mean(axis=1)
+            Values.append(val)
             y_i, rng = bootstrap(val,n_boot=n_boot*10)
             y.append(y_i)
             lo.append(rng[0])
@@ -467,8 +472,18 @@ def pulseTrain(pulse=[1,], isi=[30,], iti=[2,], n=20, n_boot=1e3, statistic=np.m
         ax[1].scatter(xp,y,color=c)
         ax[1].plot(xp,y,color=c,ls=':')
         ax[1].fill_between(xp,lo,hi,alpha=.1,facecolor=c,zorder=-1)
-        
-    if norm_time:        
+        #do scalar measurements
+        Values = np.array(Values).T
+        for j,M in enumerate(measurements):
+            v = M(Values)
+            yy, rng = bootstrap(v,statistic=np.mean,n_boot=10*n_boot)
+            xx = j+i/len(sweep)/2+shift
+            ax[2].scatter([xx],[yy],color=c)
+            ax[2].plot([xx,xx],rng,c=c)
+        if shift==0:
+            ax[2].set_xticks(np.arange(len(measurements)))
+            ax[2].set_xticklabels([M.__name__ for M in measurements],rotation=-45)
+    if norm_time:
         ax[0].set_xlim(-2,1.25*n)
         ax[0].set_xlabel('time/isi')
     else:
@@ -483,7 +498,7 @@ def pulseTrain(pulse=[1,], isi=[30,], iti=[2,], n=20, n_boot=1e3, statistic=np.m
     if not fig is None:
         fig.suptitle(f'variable {sweep_names[sweep_ind]}')
     return fig, ax
-
+###############################################################################################
 def pulseTrain_rnai(interest=[], exclude=['regen'],pulse=1, isi=30, iti=2, n=20, n_boot=1e3,
                     statistic=np.median, integrate=30, trial_rng=(0,100), norm_time=False):
     '''plots knockdown pule train overlayed on WT'''
@@ -493,17 +508,21 @@ def pulseTrain_rnai(interest=[], exclude=['regen'],pulse=1, isi=30, iti=2, n=20,
         result = pickle.load(f)
     #plot WT
     fig, ax = pulseTrain(pulse=pulse, isi=isi, n_boot=n_boot, norm_time=norm_time, trial_rng=trial_rng, n=n,
-               integrate=integrate, exclude=exclude, color='grey')
+               integrate=integrate, exclude=['regen','vibe'], color='grey')
     #plot each gene
     for i,name in enumerate(interest):
+        exclude_i = exclude
+        if not '+' in name:
+            exclude_i.append('+')
         pulseTrain(interest=[name], pulse=pulse, isi=isi, n_boot=n_boot, norm_time=norm_time, trial_rng=trial_rng, n=n,
-                   integrate=integrate, exclude=exclude, ax=ax, color=plt.cm.Set1(i/9)) 
+                   integrate=integrate, exclude=exclude_i, ax=ax, color=plt.cm.Set1(i/9),shift=(i+1)/len(interest)/2)
     #plot details
     fig.suptitle('')
     return fig,ax
-        
-def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statistic=np.median,integrate=60,
-                              trial_rng=(0,100),pool=6,color_scheme=plt.cm.cool, norm_time=False):
+###############################################################################################
+def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statistic=np.median,integrate=30,
+                              trial_rng=(0,100),pool=6,color_scheme=plt.cm.cool, norm_time=False,
+                             measurements=[sensitization, sensitizationRate, habituation, habituationRate, tPeak],):
     '''plots pooled, time-dependent pulse train on whole worm WT control'''
     #load data
     name = 'data/LDS_response_pulseTrain.pickle'
@@ -511,16 +530,21 @@ def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statis
         result = pickle.load(f)
     to_plot = data_of_interest(result.keys(),interest,exclude)
     #plot it
-    fig, ax = plt.subplots(nrows=len(to_plot),ncols=2,sharey=True,figsize=(12,6*len(to_plot)))
+    fig, ax = plt.subplots(nrows=len(to_plot),ncols=3,sharey=False,figsize=(12,6*len(to_plot)))
+    print(ax.shape)
     if len(to_plot)==1:
         ax=ax[None,:]
+    measured_scalars = [[] for i in measurements]
+    measured_scalars_lo = [[] for i in measurements]
+    measured_scalars_hi = [[] for i in measurements]
     for i,(dat,a) in enumerate(zip(to_plot,ax)):
+        a[0].get_shared_y_axes().join(a[0], a[1])
         data = result[dat]['data']
         # put in control
         pulseTrain(pulse=result[dat]['pulse']/2,
                       isi=(result[dat]['delay']+result[dat]['pulse'])/2,
-                      n_boot=n_boot,norm_time=norm_time,trial_rng=(3,50),n=result[dat]['n'],
-                      integrate=30,exclude=['regen',],ax=a,color='grey') #TODO-don't hardcode integrate?
+                      n_boot=n_boot,norm_time=norm_time,trial_rng=trial_rng,n=result[dat]['n'],
+                      integrate=30,exclude=['regen','vibe'],ax=a,color='grey') #TODO-don't hardcode integrate?
         for j in np.arange(*trial_rng,pool):
             c = color_scheme(j/trial_rng[1])
             if j>=len(data): break
@@ -533,15 +557,17 @@ def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statis
             a[0].fill_between(tp,*rng,alpha=.1,color=c,lw=0,edgecolor='None')
             a[0].set_xlim(-5,15)
             a[0].set_title(dat)
-            
+
             #plot integrated
             n_i = result[dat]['n']
             loc = np.where(tp==0)[0][0]
             y = []
             lo = []
             hi = []
+            Values=[]
             for n_i in range(n_i):
                 val = yp[:,loc:loc+integrate*2].mean(axis=1)
+                Values.append(val)
                 y_i, rng = bootstrap(val,n_boot=n_boot*10)
                 y.append(y_i)
                 lo.append(rng[0])
@@ -552,12 +578,24 @@ def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statis
             a[1].plot(xp,y,color=c,ls=':')
             a[1].fill_between(xp,lo,hi,alpha=.1,facecolor=c,zorder=-1)
             a[0].set_ylim(0,1.5)
+            #do scalar measurements
+            Values = np.array(Values).T
+            for k,M in enumerate(measurements):
+                v = M(Values)
+                yy, rng = bootstrap(v,statistic=np.mean,n_boot=10*n_boot)
+                measured_scalars[k].append(yy)
+                measured_scalars_lo[k].append(rng[0])
+                measured_scalars_hi[k].append(rng[1])
+                xx = k+(j-trial_rng[0])/(trial_rng[1]-trial_rng[0])/2
+                a[2].scatter([xx],[yy],color=c)
+                a[2].plot([xx,xx],rng,c=c)
+
+
             if i<len(to_plot)-1:
                 a[0].set_xlabel('')
                 a[1].set_xlabel('')
                 a[0].set_ylabel('')
-                a[1].set_ylabel('')            
+                a[1].set_ylabel('')
     return fig,ax
 
-
-
+#
