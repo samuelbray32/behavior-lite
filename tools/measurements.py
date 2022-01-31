@@ -39,6 +39,22 @@ def totalResponse(data):
 #     Pulse train measurements       #
 ######################################
 from scipy.stats import linregress
+def pulsesPop(data,n,isi,integrate):
+    y = np.median(data,axis=0)
+    return np.array([y[i*isi:i*isi+integrate].mean() for i in range(n)])
+
+def sensitization(data,**kwargs):
+    ''' (population peak response- population first response)'''
+    y = pulsesPop(data,**kwargs)
+    return y[5]-y[0] #(y.max()-y[0])#/np.argmax(y)
+
+def habituation(data,**kwargs):
+    ''' (population peak response-population last response)'''
+    y = pulsesPop(data,**kwargs)
+    return y.max()-y[-1]#y.max()-y[-1]#/(y.size-np.argmax(y))
+
+
+
 def sensitizationRate(data):
     ''' (peak response-first response)/t_peak'''
     #shape = (samples, pulses)
@@ -66,15 +82,15 @@ def habituationRate(data):
     return values
 
 
-def sensitization(data):
-    ''' (peak response-first response)'''
-    #shape = (samples, pulses)
-    return (data.max(axis=1)-data[:,0])
-
-def habituation(data):
-    ''' (peak response-first response)'''
-    #shape = (samples, pulses)
-    return (data.max(axis=1)-data[:,-1])
+# def sensitization(data):
+#     ''' (peak response-first response)'''
+#     #shape = (samples, pulses)
+#     return (data.max(axis=1)-data[:,0])
+#
+# def habituation(data):
+#     ''' (peak response-first response)'''
+#     #shape = (samples, pulses)
+#     return (data.max(axis=1)-data[:,-1])
 
 def tPeak(data):
     ''' (peak response-first response)'''

@@ -4,7 +4,7 @@ import pickle
 from .bootstrapTest import bootstrap_traces, bootstrapTest, bootstrap
 from .bootstrapTest import bootstrap_diff, bootstrap_relative
 from .measurements import adaptationTime, peakResponse, totalResponse, totalResponse_pop, responseDuration
-from .measurements import sensitization,sensitizationRate, habituation,habituationRate, tPeak
+from .measurements import sensitization, habituation,sensitizationRate,habituationRate, tPeak
 
 def data_of_interest(names,interest=[],exclude=[]):
     to_plot = []
@@ -111,10 +111,11 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
     for a in ax:
         a[0].set_yticks([0,1,2])
     return fig,ax
-
+################################################################################
 def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,drugs=False,
                           measure_compare=None,ind_measure=[],
-                          pop_measure=[adaptationTime,peakResponse,totalResponse_pop]):
+                          pop_measure=[responseDuration,totalResponse_pop],
+                          pulseTimes=[5,30]): #peakResponse,
     '''compiles 5s and 30s data for given genes of interest and layers on plot'''
     name = 'data/LDS_response_rnai.pickle'
     if drugs:
@@ -130,23 +131,24 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
     #give extra n_boot to measurements
     n_boot_meas = max(n_boot, 3e2)
 
-    fig, ax_all=plt.subplots(nrows=2, ncols=2, sharex='col', sharey='col',figsize=(12,8))
+    fig, ax_all=plt.subplots(nrows=len(pulseTimes), ncols=2, sharex='col', sharey='col',figsize=(12,8))
     ax = ax_all[:,0]
     ax2 = ax_all[:,1]
     tic_loc = []
     tic_name=[]
     #reference
     Y_REF = []
-    for num in range(2):
-        if num==0:
-            xp=result['tau']-5/60
+    for num,pulse in enumerate(pulseTimes):
+        xp=result['tau']-pulse/60
+        if pulse==5:
             yp_ref = result['WT']
-        if num==1:
-            xp=result['tau']-.5
-            yp_ref=result['WT_30s']
+        else:
+            yp_ref = result[f'WT_{pulse}s']
+        # yp_ref=result['WT_30s']
+
         Y_REF.append(yp_ref)
         y,rng = bootstrap_traces(yp_ref,n_boot=n_boot,statistic=statistic)
-        ax[num].plot(xp,y,lw=1,color='grey',zorder=-2,alpha=.6,label=f'WT {yp_ref.shape[0]}')
+        ax[num].plot(xp,y,lw=1,color='grey',zorder=20,alpha=.6,label=f'WT {yp_ref.shape[0]}')
         ax[num].fill_between(xp,*rng,alpha=.2,color='grey',lw=0,edgecolor='None', zorder=-1)
         ax[num].set_ylim(0,2)
         ax[num].set_yticks([0,1,2])
@@ -164,7 +166,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
             else:
                 y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M)
             x_loc = n_m#n_m*(len(interest_list)+1)
-            ax2[num].scatter([x_loc],[y],color='grey')
+            ax2[num].bar([x_loc],[y-1],color='grey',width=.1,bottom=[1],alpha=.2)
             ax2[num].plot([x_loc,x_loc],rng,color='grey')
             tic_loc.append(x_loc)
             tic_name.append(M.__name__)
@@ -188,20 +190,22 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
 
     for i,interest in enumerate(interest_list):
         c=plt.cm.Set1(i/9)
-        for num in range(2):
+        for num,pulse in enumerate(pulseTimes):
+            print(pulse,exclude)
             exclude_this = exclude.copy()
-            if num==0:
-                exclude_this.extend(['_30s','_1s'])
+            if pulse==5:
+                exclude_this.extend(['_30s','_1s','_'])
                 xp=result['tau']-5/60
-                yp_ref = result['WT']
-            if num==1:
-                exclude_this.extend(['_1s'])
-                interest = interest+'_30s'
-                xp=result['tau']-.5
-                yp_ref=result['WT_30s']
+                interest_i=interest
+                # yp_ref = result['WT']
+            else:
+                # exclude_this.extend(['_1s'])
+                interest_i = interest+f'_{pulse}s'
+                xp=result['tau']-pulse/60
+                # yp_ref=result['WT_30s']
             if not '+' in interest:
                 exclude_this.append('+')
-            to_plot = data_of_interest(result.keys(),[interest],exclude_this)
+            to_plot = data_of_interest(result.keys(),[interest_i],exclude_this)
             if len(to_plot)==0: continue
             print(to_plot)
 
@@ -210,10 +214,10 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 yp.extend(result[dat])
             yp = np.array(yp)
             y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
-            ax[num].plot(xp,y,label=f'{interest} ({yp.shape[0]})',lw=1,color=c,)
-            ax[num].fill_between(xp,*rng,alpha=.1,color=c,lw=0,edgecolor='None')
+            ax[num].plot(xp,y,label=f'{interest} ({yp.shape[0]})',lw=1,color=c,zorder=-1)
+            ax[num].fill_between(xp,*rng,alpha=.1,color=c,lw=0,edgecolor='None',zorder=-2)
             ax[num].legend()
-            #calculate population based statistics
+            #calculate population based measures
             for n_m, M in enumerate(pop_measure):
                 loc=np.argmin(xp**2)
                 if measure_compare in DIFFERENCE:
@@ -226,7 +230,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                     y,rng = bootstrap(yp[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M)
                     significant=False
                 x_loc= n_m + (i+1)*.07   #n_m*(len(interest_list)+1)+i+1
-                ax2[num].scatter([x_loc],[y],color=c)
+                ax2[num].bar([x_loc],[y-1],color=c,width=.1,bottom=[1],alpha=.2)
                 ax2[num].plot([x_loc,x_loc],rng,color=c)
                 if significant:
                     mark_sig(ax2[num],x_loc,c=c)
@@ -243,11 +247,13 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                     y,rng = bootstrap(value,n_boot=n_boot_meas)
                     significant=False
                 x_loc2 = len(pop_measure) + n_m2 + (i+1)*.07  #n_m2*(len(interest_list)+1)+i+1 + x_loc +1
-                ax2[num].scatter([x_loc2],[y],color=c)
+                ax2[num].bar([x_loc2],[y-1],color=c,width=.1,bottom=[1],alpha=.2)
                 ax2[num].plot([x_loc2,x_loc2],rng,color=c)
                 if significant:
-                    mark_sig(ax2[num],x_loc2,c=c)
+                    mark_sig(ax2[num],x_loc,c=c)
 
+    for a in ax2:
+        a.plot([-.1,x_loc+.1],[1,1],c='k',lw=.5)
     ax2[-1].set_xticks(tic_loc)
     ax2[-1].set_xticklabels(tic_name)
     ax[-1].set_xlabel('time (min)')
@@ -501,14 +507,16 @@ def pulseTrain(pulse=[1,], isi=[30,], iti=[2,], n=20, n_boot=1e3, statistic=np.m
 ###############################################################################################
 def pulseTrain_rnai(interest=[], exclude=['regen'],pulse=1, isi=30, iti=2, n=20, n_boot=1e3,
                     statistic=np.median, integrate=30, trial_rng=(0,100), norm_time=False):
-    '''plots knockdown pule train overlayed on WT'''
+    '''plots knockdown pulse train overlayed on WT'''
     #load data
     name = 'data/LDS_response_pulseTrain.pickle'
     with open(name,'rb') as f:
         result = pickle.load(f)
     #plot WT
+    exclude_i = exclude.copy()
+    exclude_i.extend(['regen','vibe'])
     fig, ax = pulseTrain(pulse=pulse, isi=isi, n_boot=n_boot, norm_time=norm_time, trial_rng=trial_rng, n=n,
-               integrate=integrate, exclude=['regen','vibe'], color='grey')
+               integrate=integrate, exclude=exclude_i, color='grey')
     #plot each gene
     for i,name in enumerate(interest):
         exclude_i = exclude
