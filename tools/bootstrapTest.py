@@ -87,6 +87,13 @@ def bootstrap_traces(data, sample_size=None, statistic=np.mean,
     return np.mean(bootstrap,axis=0), [np.percentile(bootstrap,(100-conf_interval)/2,axis=0),
                                     np.percentile(bootstrap,conf_interval+(100-conf_interval)/2,axis=0)]
 
+def timeDependentDifference(data,ref,n_boot=1e3,conf_interval=99):
+    '''Returns whether data and ref are significantly deifferenct at each timepoint'''
+    #'''Runs differently than the other measurements below (aka: not interchangable)'''
+    pop_samp = lambda x: np.median(x[np.random.choice(np.arange(x.shape[0]),x.shape[0])],axis=0)
+    diff = np.array([pop_samp(data) - pop_samp(ref) for i in range(int(n_boot))])
+    diff = (np.percentile(diff,(100-conf_interval)/2,axis=0)>0) + (np.percentile(diff,conf_interval+(100-conf_interval)/2,axis=0)<0)
+    return diff
 
 
 def bootstrap_compare(data1, data2, operator=np.subtract, measurement=None, sample_size=None, statistic=np.mean,
