@@ -161,9 +161,10 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
         yp_ref = np.array(yp_ref)
 
         Y_REF.append(yp_ref)
-        y,rng = bootstrap_traces(yp_ref,n_boot=n_boot,statistic=statistic,conf_interval=conf_interval)
-        ax[num].plot(xp,y,lw=1,color='grey',zorder=20,alpha=.6,label=f'WT {yp_ref.shape[0]}')
-        ax[num].fill_between(xp,*rng,alpha=.2,color='grey',lw=0,edgecolor='None', zorder=-1)
+        ind_t = np.where((xp>=-4)&(xp<=11))[0]
+        y,rng = bootstrap_traces(yp_ref[:,ind_t],n_boot=n_boot,statistic=statistic,conf_interval=conf_interval)
+        ax[num].plot(xp[ind_t],y,lw=1,color='grey',zorder=20,alpha=.6,label=f'WT {yp_ref.shape[0]}')
+        ax[num].fill_between(xp[ind_t],*rng,alpha=.2,color='grey',lw=0,edgecolor='None', zorder=-1)
         ax[num].set_ylim(0,2)
         ax[num].set_yticks([0,1,2])
         # ax[num].plot([0,0],[0,5],c='k',ls=':')
@@ -227,9 +228,9 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
             for dat in to_plot:
                 yp.extend(result[dat])
             yp = np.array(yp)
-            y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic,conf_interval=conf_interval)
-            ax[num].plot(xp,y,label=f'{interest} ({yp.shape[0]})',lw=1,color=c,zorder=-1)
-            ax[num].fill_between(xp,*rng,alpha=.1,color=c,lw=0,edgecolor='None',zorder=-2)
+            y,rng = bootstrap_traces(yp[:,ind_t],n_boot=n_boot,statistic=statistic,conf_interval=conf_interval)
+            ax[num].plot(xp[ind_t],y,label=f'{interest} ({yp.shape[0]})',lw=1,color=c,zorder=-1)
+            ax[num].fill_between(xp[ind_t],*rng,alpha=.1,color=c,lw=0,edgecolor='None',zorder=-2)
             #Do a time-dependent test on the reference and current knockdown
             loc=np.argmin(xp**2)
             ind_sig = np.arange(0,10*120)+loc
