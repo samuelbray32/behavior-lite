@@ -5,7 +5,7 @@ from .bootstrapTest import bootstrap_traces, bootstrapTest, bootstrap, timeDepen
 from .bootstrapTest import bootstrap_diff, bootstrap_relative
 from .measurements import adaptationTime, peakResponse, totalResponse, totalResponse_pop, responseDuration
 from .measurements import sensitization, habituation,sensitizationRate,habituationRate, tPeak
-
+from tools.measurements import pulsesPop, sensitization, habituation
 def data_of_interest(names,interest=[],exclude=[]):
     to_plot = []
     for dat in names:
@@ -420,7 +420,7 @@ def pulseTrain_WT(**kwargs):
 def pulseTrain(pulse=[1,], isi=[30,], iti=[2,], n=20, n_boot=1e3, statistic=np.median, integrate=30,
                trial_rng=(0,12), color_scheme=plt.cm.viridis, interest=['WT'], exclude=['regen'],
                norm_time=False, ax=None, color=None, fig=None, shift=0,
-               measurements=[sensitization, sensitizationRate, habituation, habituationRate, tPeak]):
+               measurements=[sensitization, habituation, ]):
     '''Multifunctional tool. can sweep through pulse isi or iti for given gene condition.
     Alternatively, can return the compiled result for a given gene condition (see: call in pulseTrain_rnai)'''
     #load data
@@ -492,29 +492,16 @@ def pulseTrain(pulse=[1,], isi=[30,], iti=[2,], n=20, n_boot=1e3, statistic=np.m
         ax[0].fill_between(tp,*rng,alpha=.1,color=c,lw=0,edgecolor='None')
         #plot integrated
         loc = np.where(tp==0)[0][0]
-        y = []
-        lo = []
-        hi = []
-        Values =[]
-        for n_i in range(n_i):
-            val = yp[:,loc:loc+integrate*2].mean(axis=1)
-            Values.append(val)
-            y_i, rng = bootstrap(val,n_boot=n_boot*10)
-            y.append(y_i)
-            lo.append(rng[0])
-            hi.append(rng[1])
-            loc += int(condition[1]*2)
+        y, (lo, hi) = bootstrap(yp[:,loc:],n_boot=n_boot,statistic=pulsesPop,n=n_i,isi=int(condition[1]*2),integrate=integrate*2)
         xp = np.arange(len(y))
         ax[1].scatter(xp,y,color=c)
         ax[1].plot(xp,y,color=c,ls=':')
         ax[1].fill_between(xp,lo,hi,alpha=.1,facecolor=c,zorder=-1)
         #do scalar measurements
-        Values = np.array(Values).T
         for j,M in enumerate(measurements):
-            v = M(Values)
-            yy, rng = bootstrap(v,statistic=np.mean,n_boot=10*n_boot)
+            yy, rng = bootstrap(yp[:,loc:],n_boot=n_boot,statistic=M,n=n_i,isi=int(condition[1]*2),integrate=integrate*2)
             xx = j+i/len(sweep)/2+shift
-            ax[2].scatter([xx],[yy],color=c)
+            ax[2].bar([xx],[yy],color=c,alpha=.2,width=.1)
             ax[2].plot([xx,xx],rng,c=c)
         if shift==0:
             ax[2].set_xticks(np.arange(len(measurements)))
@@ -543,10 +530,8 @@ def pulseTrain_rnai(interest=[], exclude=['regen'],pulse=1, isi=30, iti=2, n=20,
     with open(name,'rb') as f:
         result = pickle.load(f)
     #plot WT
-    exclude_i = exclude.copy()
-    exclude_i.extend(['regen','vibe'])
     fig, ax = pulseTrain(pulse=pulse, isi=isi, n_boot=n_boot, norm_time=norm_time, trial_rng=trial_rng, n=n,
-               integrate=integrate, exclude=exclude_i, color='grey')
+               integrate=integrate, exclude=['regen','vibe'], color='grey')
     #plot each gene
     for i,name in enumerate(interest):
         exclude_i = exclude

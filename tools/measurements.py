@@ -38,7 +38,7 @@ def peakResponse(data):
 
 def totalResponse_pop(data):
     '''total response of population trace'''
-    return np.mean(np.median(data,axis=0))
+    return np.mean(np.var((data>.5).astype(float),axis=0))#np.mean(np.median(data,axis=0))
 
 def totalResponse(data):
     '''total response of individual trace'''
