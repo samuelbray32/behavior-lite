@@ -35,16 +35,20 @@ def rnai_response(interest,exclude,n_boot=1e3,statistic=np.median,regeneration=F
     num=0
     for i in to_plot:
         #plot control
+        sh =0
         if i[-3:]=='30s':
             yp=result['WT_30s']
             xp=result['tau']-.5
+            sh = .5
         elif ('_1s' in i):# or i=='oct 20mM':
             print(i)
             yp=result['WT_1s']
-            xp=result['tau']-5/60
+            xp=result['tau']-1/60
+            sh=1/60
         else:
             yp=result['WT']
             xp=result['tau']-5/60
+            sh=5/60
         y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
         ax[num].plot(xp,y,lw=1,color='grey',zorder=-2,alpha=.6)
         ax[num].fill_between(xp,*rng,alpha=.2,color='grey',lw=0,edgecolor='None', zorder=-1)
@@ -95,11 +99,15 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
             y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
             ax[j,i].plot(xp,y,color='grey',zorder=-1)
             ax[j,i].fill_between(xp,*rng,alpha=.3,edgecolor=None,facecolor='grey',zorder=-2)
-
+            sh=0
+            if '30s' in data[i]: sh=.5
+            if '5s' in data[i]: sh=5/60    
+            ax[j,i].fill_between([-sh,0,],[-1,-1],[10,10],facecolor='thistle',alpha=.3,zorder=-20)
             ax[j,i].spines['top'].set_visible(False)
             ax[j,i].spines['right'].set_visible(False)
             if i>0:
                 ax[j,i].spines['left'].set_visible(False)
+             
     fig.suptitle('regen control')
     #    ax[j].legend()
     plt.xlim(-3,20)
@@ -115,7 +123,7 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
 def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,drugs=False,
                           measure_compare=None,ind_measure=[],
                           pop_measure=[responseDuration,totalResponse_pop],
-                          pulseTimes=[5,30],conf_interval=95): #peakResponse,
+                          pulseTimes=[5,30],conf_interval=95, stat_testing=True): #peakResponse,
     '''compiles 5s and 30s data for given genes of interest and layers on plot'''
     name = 'data/LDS_response_rnai.pickle'
     if drugs:
@@ -131,7 +139,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
     #give extra n_boot to measurements
     n_boot_meas = max(n_boot, 3e2)
 
-    fig, ax_all=plt.subplots(nrows=len(pulseTimes), ncols=2, sharex='col', sharey='col',figsize=(12,8))
+    fig, ax_all=plt.subplots(nrows=len(pulseTimes), ncols=2, sharex='col', sharey='col',figsize=(15,10))
     ax = ax_all[:,0]
     ax2 = ax_all[:,1]
     tic_loc = []
@@ -234,55 +242,57 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
             #Do a time-dependent test on the reference and current knockdown
             loc=np.argmin(xp**2)
             ind_sig = np.arange(0,10*120)+loc
-            time_sig = timeDependentDifference(yp[:,ind_sig],Y_REF[num][:,ind_sig],n_boot=n_boot,conf_interval=conf_interval)
-            x_sig = xp[ind_sig]#np.arange(0,10,1/120)
-            y_sig = .25
-            if len(interest_list)>1:
-                y_sig=.5/len(interest_list)
-            bott = np.zeros_like(x_sig)+2 - i*y_sig
-            ax[num].fill_between(x_sig,bott,bott-y_sig*time_sig,
-                facecolor=c,alpha=.4)
-            box_keys={'lw':1, 'c':'k'}
-            ax[num].plot(x_sig,bott,**box_keys)
-            ax[num].plot(x_sig,bott-y_sig,**box_keys)
-            ax[num].plot([0,0],[bott[0],bott[0]-y_sig],**box_keys)
-            ax[num].plot([10,10],[bott[0],bott[0]-y_sig],**box_keys)
-            ax[num].legend()
-            #calculate population based measures
-            for n_m, M in enumerate(pop_measure):
-                loc=np.argmin(xp**2)
-                if measure_compare in DIFFERENCE:
-                    y,rng,significant = bootstrap_diff(yp[:,loc:loc+10*120],Y_REF[num][:,loc:loc+10*120]
-                                               ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
-                elif measure_compare in RELATIVE:
-                    y,rng,significant = bootstrap_relative(yp[:,loc:loc+10*120],Y_REF[num][:,loc:loc+10*120]
-                                               ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
-                else:
-                    y,rng = bootstrap(yp[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
-                    significant=False
-                x_loc= n_m + (i+1)*.07   #n_m*(len(interest_list)+1)+i+1
-                ax2[num].bar([x_loc],[y-1],color=c,width=.1,bottom=[1],alpha=.2)
-                ax2[num].plot([x_loc,x_loc],rng,color=c)
-                if significant:
-                    mark_sig(ax2[num],x_loc,c=c)
-            #calculate individual based
-            for n_m2, M in enumerate(ind_measure):
-                loc=np.argmin(xp**2)
-                value = M(yp[:,loc:loc+10*120])
-                value_ref = M(Y_REF[num][:,loc:loc+10*120])
-                if measure_compare in DIFFERENCE:
-                    y,rng,significant = bootstrap_diff(value,value_ref,n_boot=n_boot_meas,measurement=None,conf_interval=conf_interval)
-                elif measure_compare in RELATIVE:
-                    y,rng,significant = bootstrap_relative(value,value_ref,n_boot=n_boot_meas,measurement=None,conf_interval=conf_interval)
-                else:
-                    y,rng = bootstrap(value,n_boot=n_boot_meas,conf_interval=conf_interval)
-                    significant=False
-                x_loc2 = len(pop_measure) + n_m2 + (i+1)*.07  #n_m2*(len(interest_list)+1)+i+1 + x_loc +1
-                ax2[num].bar([x_loc2],[y-1],color=c,width=.1,bottom=[1],alpha=.2)
-                ax2[num].plot([x_loc2,x_loc2],rng,color=c)
-                if significant:
-                    mark_sig(ax2[num],x_loc,c=c)
-
+            if stat_testing:
+                time_sig = timeDependentDifference(yp[:,ind_sig],Y_REF[num][:,ind_sig],n_boot=n_boot,conf_interval=conf_interval)
+                x_sig = xp[ind_sig]#np.arange(0,10,1/120)
+                y_sig = .25
+                if len(interest_list)>1:
+                    y_sig=.5/len(interest_list)
+                bott = np.zeros_like(x_sig)+2 - i*y_sig
+                ax[num].fill_between(x_sig,bott,bott-y_sig*time_sig,
+                    facecolor=c,alpha=.4)
+                box_keys={'lw':1, 'c':'k'}
+                ax[num].plot(x_sig,bott,**box_keys)
+                ax[num].plot(x_sig,bott-y_sig,**box_keys)
+                ax[num].plot([0,0],[bott[0],bott[0]-y_sig],**box_keys)
+                ax[num].plot([10,10],[bott[0],bott[0]-y_sig],**box_keys)
+                
+                #calculate population based measures
+                for n_m, M in enumerate(pop_measure):
+                    loc=np.argmin(xp**2)
+                    if measure_compare in DIFFERENCE:
+                        y,rng,significant = bootstrap_diff(yp[:,loc:loc+10*120],Y_REF[num][:,loc:loc+10*120]
+                                                   ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
+                    elif measure_compare in RELATIVE:
+                        y,rng,significant = bootstrap_relative(yp[:,loc:loc+10*120],Y_REF[num][:,loc:loc+10*120]
+                                                   ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
+                    else:
+                        y,rng = bootstrap(yp[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
+                        significant=False
+                    x_loc= n_m + (i+1)*.07   #n_m*(len(interest_list)+1)+i+1
+                    ax2[num].bar([x_loc],[y-1],color=c,width=.1,bottom=[1],alpha=.2)
+                    ax2[num].plot([x_loc,x_loc],rng,color=c)
+                    if significant:
+                        mark_sig(ax2[num],x_loc,c=c)
+                #calculate individual based
+                for n_m2, M in enumerate(ind_measure):
+                    loc=np.argmin(xp**2)
+                    value = M(yp[:,loc:loc+10*120])
+                    value_ref = M(Y_REF[num][:,loc:loc+10*120])
+                    if measure_compare in DIFFERENCE:
+                        y,rng,significant = bootstrap_diff(value,value_ref,n_boot=n_boot_meas,measurement=None,conf_interval=conf_interval)
+                    elif measure_compare in RELATIVE:
+                        y,rng,significant = bootstrap_relative(value,value_ref,n_boot=n_boot_meas,measurement=None,conf_interval=conf_interval)
+                    else:
+                        y,rng = bootstrap(value,n_boot=n_boot_meas,conf_interval=conf_interval)
+                        significant=False
+                    x_loc2 = len(pop_measure) + n_m2 + (i+1)*.07  #n_m2*(len(interest_list)+1)+i+1 + x_loc +1
+                    ax2[num].bar([x_loc2],[y-1],color=c,width=.1,bottom=[1],alpha=.2)
+                    ax2[num].plot([x_loc2,x_loc2],rng,color=c)
+                    if significant:
+                        mark_sig(ax2[num],x_loc,c=c)
+    ax[num].legend()
+    
     for a in ax2:
         a.plot([-.1,x_loc+.1],[1,1],c='k',lw=.5)
     ax2[-1].set_xticks(tic_loc)
