@@ -241,21 +241,22 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
             ax[num].fill_between(xp[ind_t],*rng,alpha=.1,color=c,lw=0,edgecolor='None',zorder=-2)
             #Do a time-dependent test on the reference and current knockdown
             loc=np.argmin(xp**2)
-            ind_sig = np.arange(0,10*120)+loc
+            ind_sig = np.arange(-5*120,10*120)+loc
             if stat_testing:
                 time_sig = timeDependentDifference(yp[:,ind_sig],Y_REF[num][:,ind_sig],n_boot=n_boot,conf_interval=conf_interval)
                 x_sig = xp[ind_sig]#np.arange(0,10,1/120)
-                y_sig = .25
+                y_sig = .1
                 if len(interest_list)>1:
-                    y_sig=.5/len(interest_list)
+                    y_sig=2*y_sig/len(interest_list)
                 bott = np.zeros_like(x_sig)+2 - i*y_sig
                 ax[num].fill_between(x_sig,bott,bott-y_sig*time_sig,
                     facecolor=c,alpha=.4)
                 box_keys={'lw':1, 'c':'k'}
                 ax[num].plot(x_sig,bott,**box_keys)
                 ax[num].plot(x_sig,bott-y_sig,**box_keys)
-                ax[num].plot([0,0],[bott[0],bott[0]-y_sig],**box_keys)
+                ax[num].plot([ind_sig[0],ind_sig[0]],[bott[0],bott[0]-y_sig],**box_keys)
                 ax[num].plot([10,10],[bott[0],bott[0]-y_sig],**box_keys)
+#                 ax[num].set_ylim(bott[0]-y_sig,2)
                 
                 #calculate population based measures
                 for n_m, M in enumerate(pop_measure):
