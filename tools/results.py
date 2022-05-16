@@ -123,7 +123,8 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
 def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,drugs=False,
                           measure_compare=None,ind_measure=[],
                           pop_measure=[responseDuration,totalResponse_pop],
-                          pulseTimes=[5,30],conf_interval=95, stat_testing=True): #peakResponse,
+                          pulseTimes=[5,30],conf_interval=95, stat_testing=True,
+                         plot_comparison=True): #peakResponse,
     '''compiles 5s and 30s data for given genes of interest and layers on plot'''
     name = 'data/LDS_response_rnai.pickle'
     if drugs:
@@ -134,14 +135,16 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
     DIFFERENCE = ['diff','difference','subtract']
     RELATIVE = ['relative','rel','divide']
     #significance marker
-    def mark_sig(ax,loc,c='grey'):
-        ax.scatter([loc,],12,marker='*',color=c)
+    def mark_sig(ax,loc,c='grey',yy=12):
+        ax.scatter([loc,],yy,marker='*',color=c)
     #give extra n_boot to measurements
     n_boot_meas = max(n_boot, 3e2)
 
-    fig, ax_all=plt.subplots(nrows=len(pulseTimes), ncols=2, sharex='col', sharey='col',figsize=(15,10))
+    fig, ax_all=plt.subplots(nrows=len(pulseTimes), ncols=1+len(pop_measure)+len(ind_measure),
+                             sharex='col', sharey='col',figsize=(15,10),
+                             gridspec_kw={'width_ratios': [4]+[1 for _ in range(len(pop_measure)+len(ind_measure))]})
     ax = ax_all[:,0]
-    ax2 = ax_all[:,1]
+    ax2 = ax_all[:,1:]
     tic_loc = []
     tic_name=[]
     #reference
@@ -181,17 +184,22 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
         for n_m, M in enumerate(pop_measure):
             loc=np.argmin(xp**2)
 #             y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot,statistic=M)
+            bott = 0
             if measure_compare in DIFFERENCE:
                 y,rng,significant = bootstrap_diff(yp_ref[:,loc:loc+10*120],yp_ref[:,loc:loc+10*120]
                                            ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
             elif measure_compare in RELATIVE:
+                bott = 1
                 y,rng,significant = bootstrap_relative(yp_ref[:,loc:loc+10*120],yp_ref[:,loc:loc+10*120]
                                            ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
             else:
                 y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
-            x_loc = n_m#n_m*(len(interest_list)+1)
-            ax2[num].bar([x_loc],[y-1],color='grey',width=.1,bottom=[1],alpha=.2)
-            ax2[num].plot([x_loc,x_loc],rng,color='grey')
+            if not plot_comparison:
+                y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
+            x_loc = 0#n_m*(len(interest_list)+1)
+            
+            ax2[num,n_m].bar([x_loc],[y-bott],color='grey',width=.07,bottom=[bott],alpha=.2)
+            ax2[num,n_m].plot([x_loc,x_loc],rng,color='grey')
             tic_loc.append(x_loc)
             tic_name.append(M.__name__)
 
@@ -205,10 +213,11 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 y,rng,significant = bootstrap_relative(value,value,n_boot=n_boot_meas,measurement=None,conf_interval=conf_interval)
             else:
                 y,rng = bootstrap(value,n_boot=n_boot_meas,conf_interval=conf_interval)
-
-            x_loc2 = n_m2+x_loc+1#n_m2*(len(interest_list)+1) + x_loc +1
-            ax2[num].scatter([x_loc2],[y],color='grey')
-            ax2[num].plot([x_loc2,x_loc2],rng,color='grey')
+            if not plot_comparison:
+                y,rng = bootstrap(value,n_boot=n_boot_meas,conf_interval=conf_interval)
+            x_loc2 = 0#n_m2+x_loc+1#n_m2*(len(interest_list)+1) + x_loc +1
+            ax2[num,n_m2+len(pop_measure)].scatter([x_loc2],[y],color='grey')
+            ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color='grey')
             tic_loc.append(x_loc2)
             tic_name.append(M.__name__)
 
@@ -261,20 +270,24 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 #calculate population based measures
                 for n_m, M in enumerate(pop_measure):
                     loc=np.argmin(xp**2)
+                    bott = 0
                     if measure_compare in DIFFERENCE:
                         y,rng,significant = bootstrap_diff(yp[:,loc:loc+10*120],Y_REF[num][:,loc:loc+10*120]
                                                    ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
                     elif measure_compare in RELATIVE:
+                        bott=1
                         y,rng,significant = bootstrap_relative(yp[:,loc:loc+10*120],Y_REF[num][:,loc:loc+10*120]
                                                    ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
                     else:
                         y,rng = bootstrap(yp[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
                         significant=False
-                    x_loc= n_m + (i+1)*.07   #n_m*(len(interest_list)+1)+i+1
-                    ax2[num].bar([x_loc],[y-1],color=c,width=.1,bottom=[1],alpha=.2)
-                    ax2[num].plot([x_loc,x_loc],rng,color=c)
+                    if not plot_comparison:
+                        y,rng = bootstrap(yp[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
+                    x_loc= (i+1)*.07# n_m + (i+1)*.07   #n_m*(len(interest_list)+1)+i+1
+                    ax2[num,n_m].bar([x_loc],[y-bott],color=c,width=.07,bottom=[bott],alpha=.2)
+                    ax2[num,n_m].plot([x_loc,x_loc],rng,color=c)
                     if significant:
-                        mark_sig(ax2[num],x_loc,c=c)
+                        mark_sig(ax2[num,n_m],x_loc,c=c,yy=rng[1]*1.1)
                 #calculate individual based
                 for n_m2, M in enumerate(ind_measure):
                     loc=np.argmin(xp**2)
@@ -287,28 +300,36 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                     else:
                         y,rng = bootstrap(value,n_boot=n_boot_meas,conf_interval=conf_interval)
                         significant=False
-                    x_loc2 = len(pop_measure) + n_m2 + (i+1)*.07  #n_m2*(len(interest_list)+1)+i+1 + x_loc +1
-                    ax2[num].bar([x_loc2],[y-1],color=c,width=.1,bottom=[1],alpha=.2)
-                    ax2[num].plot([x_loc2,x_loc2],rng,color=c)
+                    if not plot_comparison:
+                        y,rng = bootstrap(value,n_boot=n_boot_meas,conf_interval=conf_interval)
+                    x_loc2 = (i+1)*.07#len(pop_measure) + n_m2 + (i+1)*.07  #n_m2*(len(interest_list)+1)+i+1 + x_loc +1
+                    ax2[num,n_m2+len(pop_measure)].bar([x_loc2],[y-1],color=c,width=.07,bottom=[1],alpha=.2)
+                    ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color=c)
                     if significant:
-                        mark_sig(ax2[num],x_loc,c=c)
+                        mark_sig(ax2[num,n_m2+len(pop_measure)],x_loc,c=c,yy=rng[1]*1.1)
     ax[num].legend()
     
-    for a in ax2:
-        a.plot([-.1,x_loc+.1],[1,1],c='k',lw=.5)
-    ax2[-1].set_xticks(tic_loc)
-    ax2[-1].set_xticklabels(tic_name)
+    for a in np.ravel(ax2):
+        a.plot([-.1,1],[bott,bott],c='k',lw=.5)
+        a.set_xticks([])
+        a.set_xlim(-.07,x_loc+.07)
+        for q in ['top','right',]:#'bottom']:
+            a.spines[q].set_visible(False)
+    for label,a in zip(tic_name,ax2.T):
+        a[0].set_title(label)
+#     ax2[-1,-1].set_xticks(tic_loc)
+#     ax2[-1,-1].set_xticklabels(tic_name)
     ax[-1].set_xlabel('time (min)')
     ax[len(ax)//2].set_ylabel('Z')
     ax[0].set_xlim(-2,10)
-    if measure_compare in RELATIVE:
-        ax2[-1].set_ylabel('<M(RNAi)/M(WT)>')
-        ax2[0].set_yscale('log')
-    elif measure_compare in DIFFERENCE:
-        ax2[-1].set_ylabel('<M(RNAi) - M(WT)>')
-    else:
-        ax2[-1].set_ylabel('M(gene)')
-    ax2[-1].set_xlabel('M')
+#     if measure_compare in RELATIVE:
+#         ax2[-1].set_ylabel('<M(RNAi)/M(WT)>')
+#         ax2[0].set_yscale('log')
+#     elif measure_compare in DIFFERENCE:
+#         ax2[-1].set_ylabel('<M(RNAi) - M(WT)>')
+#     else:
+#         ax2[-1].set_ylabel('M(gene)')
+#     ax2[-1].set_xlabel('M')
     return fig, ax
 
 
