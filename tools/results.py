@@ -313,7 +313,8 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
 
 
 def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
-                               integrate=10*120,pool=12,color_scheme = None):
+                               integrate=10*120,pool=12,color_scheme=None,
+                               subtract_ref=False):
     name = 'data/LDS_response_regen_indPulse.pickle'
     with open(name,'rb') as f:
         result = pickle.load(f)
@@ -321,10 +322,11 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
     to_plot.extend(data_of_interest(result.keys(),interest,exclude))
 
     reference = []
-    if reference:
+    if subtract_ref:
         ref_name = 'data/LDS_response_uvRange.pickle'
         with open(ref_name,'rb') as f:
-            result_ref = pickle.load()
+            result_ref = pickle.load(f)
+        
     max_t = 200
     isi = integrate
     integrate = isi
@@ -338,8 +340,15 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
     for ii,cond in enumerate(to_plot):
         print(cond)
         for n_pulse, pulse in enumerate(pulse_list):
-            if reference:
-                response = result_ref[reference[ii]]
+            if subtract_ref:
+                if '5s2h' in cond:
+                    response = result_ref['WT']
+                else:
+                    x_st = cond.find('hpa_')
+                    x_en = cond[x_st:].find('s')
+                    response = result_ref['WT_'+cond[x_st+4:x_st+x_en+1]]
+
+#                 response = result_ref[reference[ii]]
                 tau = result_ref['tau'].copy()
                 if sh:
                     tau -= sh[ii]
@@ -388,20 +397,20 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
             else:
                 c =color_scheme(1-((ii+1)/len(to_plot)))
 
-#             if reference and subtract_ref:
-#                 y -= y_ref
-#                 lo -= y_ref
-#                 hi -= y_ref
-#                 # y = np.log10(y/y_ref)
-#                 # lo = np.log10(lo/y_ref)
-#                 # hi = np.log10(hi/y_ref)
+            if subtract_ref:
+                y -= y_ref
+                lo -= y_ref
+                hi -= y_ref
+                # y = np.log10(y/y_ref)
+                # lo = np.log10(lo/y_ref)
+                # hi = np.log10(hi/y_ref)
 
             ax[n_pulse].plot(t_plot,y,color=c)
             ax[n_pulse].scatter(t_plot,y,color=c,label=f'{cond}, n={data.canonical_set_traces[0].shape[0]}')
             ax[n_pulse].fill_between(t_plot,lo,hi,facecolor=c,alpha=.2)
 
-#     if subtract_ref:
-#         plt.plot(t_plot,0*t_plot,c='k',alpha=.5,ls='-.' )
+    if subtract_ref:
+        plt.plot(t_plot,0*t_plot,c='k',alpha=.5,ls='-.' )
     plt.legend()
     plt.xlabel('hours')
     plt.ylabel(f'integrated activity 0-{isi/120} min')
