@@ -124,7 +124,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                           measure_compare=None,ind_measure=[],
                           pop_measure=[responseDuration,totalResponse_pop],
                           pulseTimes=[5,30],conf_interval=95, stat_testing=True,
-                         plot_comparison=True): #peakResponse,
+                         plot_comparison=True, ylim=(0,2)): #peakResponse,
     '''compiles 5s and 30s data for given genes of interest and layers on plot'''
     name = 'data/LDS_response_rnai.pickle'
     if drugs:
@@ -139,9 +139,11 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
         ax.scatter([loc,],yy,marker='*',color=c)
     #give extra n_boot to measurements
     n_boot_meas = max(n_boot, 3e2)
-
+    
+    if not(type(ylim[0]) is tuple):
+        ylim = (ylim,ylim)
     fig, ax_all=plt.subplots(nrows=len(pulseTimes), ncols=1+len(pop_measure)+len(ind_measure),
-                             sharex='col', sharey='col',figsize=(15,10),
+                             sharex='col', sharey=False,figsize=(15,10),
                              gridspec_kw={'width_ratios': [4]+[1 for _ in range(len(pop_measure)+len(ind_measure))]})
     ax = ax_all[:,0]
     ax2 = ax_all[:,1:]
@@ -226,7 +228,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
         for num,pulse in enumerate(pulseTimes):
             exclude_this = exclude.copy()
             if pulse==5:
-                exclude_this.extend(['_30s','_1s','_'])
+                exclude_this.extend(['_30s','_1s','_','_40s','_10s'])
                 xp=result['tau']-5/60
                 interest_i=interest
                 # yp_ref = result['WT']
@@ -257,7 +259,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 y_sig = .1
                 if len(interest_list)>1:
                     y_sig=2*y_sig/len(interest_list)
-                bott = np.zeros_like(x_sig)+2 - i*y_sig
+                bott = np.zeros_like(x_sig)+ylim[num][1] - i*y_sig
                 ax[num].fill_between(x_sig,bott,bott-y_sig*time_sig,
                     facecolor=c,alpha=.4)
                 box_keys={'lw':1, 'c':'k'}
@@ -322,6 +324,9 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
     ax[-1].set_xlabel('time (min)')
     ax[len(ax)//2].set_ylabel('Z')
     ax[0].set_xlim(-2,10)
+    for a,lim in zip(ax,ylim):
+        print(lim)
+        a.set_ylim(lim)
 #     if measure_compare in RELATIVE:
 #         ax2[-1].set_ylabel('<M(RNAi)/M(WT)>')
 #         ax2[0].set_yscale('log')
