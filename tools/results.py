@@ -20,6 +20,7 @@ def data_of_interest(names,interest=[],exclude=[]):
 
 def rnai_response(interest,exclude,n_boot=1e3,statistic=np.median,regeneration=False, drugs=False,):
     if regeneration:
+        from .results_regeneration import rnai_response_regen
         return rnai_response_regen(interest,exclude,n_boot,statistic)
     name = 'data/LDS_response_rnai.pickle'
     if drugs:
@@ -66,59 +67,6 @@ def rnai_response(interest,exclude,n_boot=1e3,statistic=np.median,regeneration=F
     plt.xlim(-3,10)
     return fig, ax
 
-def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median):
-    name = 'data/LDS_response_regen.pickle'
-    with open(name,'rb') as f:
-        result = pickle.load(f)
-    data = data_of_interest(result.keys(),interest,exclude)
-    ref = []
-    for d in data:
-        if '30s' in d:
-            ref.append('standard_30s2h')
-        else:
-            ref.append('standard_5s2h')
-    day_shift = [0 for d in data]
-    fig, ax = plt.subplots(ncols=len(data),nrows=len(result[(data[0])]),sharex=True,sharey=True,figsize=(4*len(data),12))
-    if len(data)==1:
-        ax=ax[:,None]
-    if len (ref)==1:
-        ref = [ref[0] for r in data]
-
-    for i in range(len(data)):
-        ax[0,i].set_title(data[i])
-        for j in range(len (result[(data[i])])):
-            xp = result['tau']
-            yp=(result[data[i]][j])
-            if yp.size==0:
-                continue
-            y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
-            ax[j+day_shift[i],i].plot(xp,y,label=j, color=plt.cm.cool(j/7))
-            ax[j+day_shift[i],i].fill_between(xp,*rng,alpha=.3,edgecolor=None,facecolor=plt.cm.cool(j/7))
-        for j in range(len(result[ref[i]])):
-            yp=(result[ref[i]][j])
-            y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
-            ax[j,i].plot(xp,y,color='grey',zorder=-1)
-            ax[j,i].fill_between(xp,*rng,alpha=.3,edgecolor=None,facecolor='grey',zorder=-2)
-            sh=0
-            if '30s' in data[i]: sh=.5
-            if '5s' in data[i]: sh=5/60    
-            ax[j,i].fill_between([-sh,0,],[-1,-1],[10,10],facecolor='thistle',alpha=.3,zorder=-20)
-            ax[j,i].spines['top'].set_visible(False)
-            ax[j,i].spines['right'].set_visible(False)
-            if i>0:
-                ax[j,i].spines['left'].set_visible(False)
-             
-    fig.suptitle('regen control')
-    #    ax[j].legend()
-    plt.xlim(-3,20)
-    plt.ylim(-.1,2)
-    #plt.yscale('log')
-    ax[len(ax)//2,0].set_ylabel('Z')
-    ax[-1,ax.shape[1]//2].set_xlabel('time (min)')
-
-    for a in ax:
-        a[0].set_yticks([0,1,2])
-    return fig,ax
 ################################################################################
 def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,drugs=False,
                           measure_compare=None,ind_measure=[],
