@@ -70,7 +70,7 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median,whole_re
         for j in range(len (result[(data[i])])):
             xp = result['tau']
             yp_=(result[data[i]][j])
-            if yp.size==0:
+            if yp_.size==0:
                 continue
             y_,rng_ = bootstrap_traces(yp_,n_boot=n_boot,statistic=statistic)
             ax[j+day_shift[i],i].plot(xp,y_,label=j, color=plt.cm.cool(j/7))
