@@ -70,7 +70,7 @@ def rnai_response(interest,exclude,n_boot=1e3,statistic=np.median,regeneration=F
 ################################################################################
 def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,drugs=False,
                           measure_compare=None,ind_measure=[],
-                          pop_measure=[responseDuration,totalResponse_pop],
+                          pop_measure=[responseDuration,totalResponse_pop,peakResponse],
                           pulseTimes=[5,30],conf_interval=95, stat_testing=True,
                          plot_comparison=True, ylim=(0,2)): #peakResponse,
     '''compiles 5s and 30s data for given genes of interest and layers on plot'''
@@ -249,11 +249,13 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                         ax2[num,n_m].scatter([x_loc],[y],color=c)
                         for pc in v['bodies']:
                             pc.set_facecolor(c)
+                        
                     else:    
                         ax2[num,n_m].bar([x_loc],[y-bott],color=c,width=.07,bottom=[bott],alpha=.2)
                         ax2[num,n_m].plot([x_loc,x_loc],rng,color=c)
                     if significant:
                         mark_sig(ax2[num,n_m],x_loc,c=c,yy=rng[1]*1.1)
+                    ax2[num,n_m].set_ylim(ymin=0)
                 #calculate individual based
                 for n_m2, M in enumerate(ind_measure):
                     loc=np.argmin(xp**2)
@@ -274,6 +276,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                         ax2[num,n_m].scatter([x_loc2],[y],color=c)
                         for pc in v['bodies']:
                             pc.set_facecolor(c)
+                        ax2[num,n_m].set_ylim(bottom=0)
                     else:
                         ax2[num,n_m2+len(pop_measure)].bar([x_loc2],[y-1],color=c,width=.07,bottom=[1],alpha=.2)
                         ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color=c)
