@@ -143,13 +143,18 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 y,rng,significant = bootstrap_relative(yp_ref[:,loc:loc+15*120],yp_ref[:,loc:loc+15*120]
                                            ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
             else:
-                y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
-            if not plot_comparison:
-                y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
+                y,rng = bootstrap(yp_ref[:,loc:loc+15*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
             x_loc = 0#n_m*(len(interest_list)+1)
-            
-            ax2[num,n_m].bar([x_loc],[y-bott],color='grey',width=.07,bottom=[bott],alpha=.2)
-            ax2[num,n_m].plot([x_loc,x_loc],rng,color='grey')
+            if not plot_comparison:
+                y,rng,dist = bootstrap(yp_ref[:,loc:loc+15*120],n_boot=n_boot_meas,statistic=M,
+                                       conf_interval=conf_interval, return_samples=True)
+                v = ax2[num,n_m].violinplot([dist],positions=[0],vert=True,widths=[.07],showextrema=False)
+                ax2[num,n_m].scatter([x_loc],[y-bott],color='grey')
+                for pc in v['bodies']:
+                    pc.set_facecolor('grey')
+            else:
+                ax2[num,n_m].bar([x_loc],[y-bott],color='grey',width=.07,bottom=[bott],alpha=.2)
+                ax2[num,n_m].plot([x_loc,x_loc],rng,color='grey')
             tic_loc.append(x_loc)
             tic_name.append(M.__name__)
 
@@ -163,11 +168,15 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 y,rng,significant = bootstrap_relative(value,value,n_boot=n_boot_meas,measurement=None,conf_interval=conf_interval)
             else:
                 y,rng = bootstrap(value,n_boot=n_boot_meas,conf_interval=conf_interval)
+            x_loc2 = 0#n_m2+x_loc+1#n_m2*(len(interest_list)+1) + x_loc +1
             if not plot_comparison:
                 y,rng = bootstrap(value,n_boot=n_boot_meas,conf_interval=conf_interval)
-            x_loc2 = 0#n_m2+x_loc+1#n_m2*(len(interest_list)+1) + x_loc +1
-            ax2[num,n_m2+len(pop_measure)].scatter([x_loc2],[y],color='grey')
-            ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color='grey')
+                v = ax2[num,n_m+len(pop_measure)].violinplot([dist],positions=[0],vert=True,widths=[.07],showextrema=False)
+                for pc in v['bodies']:
+                    pc.set_facecolor('grey')
+            else:
+                ax2[num,n_m2+len(pop_measure)].scatter([x_loc2],[y],color='grey')
+                ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color='grey')
             tic_loc.append(x_loc2)
             tic_name.append(M.__name__)
 
@@ -229,13 +238,20 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                         y,rng,significant = bootstrap_relative(yp[:,loc:loc+15*120],Y_REF[num][:,loc:loc+15*120]
                                                    ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
                     else:
-                        y,rng = bootstrap(yp[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
+                        y,rng = bootstrap(yp[:,loc:loc+15*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
                         significant=False
-                    if not plot_comparison:
-                        y,rng = bootstrap(yp[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
                     x_loc= (i+1)*.07# n_m + (i+1)*.07   #n_m*(len(interest_list)+1)+i+1
-                    ax2[num,n_m].bar([x_loc],[y-bott],color=c,width=.07,bottom=[bott],alpha=.2)
-                    ax2[num,n_m].plot([x_loc,x_loc],rng,color=c)
+                    if not plot_comparison:
+                        y,rng,dist = bootstrap(yp[:,loc:loc+15*120],n_boot=n_boot_meas,statistic=M,
+                                               conf_interval=conf_interval,return_samples=True)
+                        v = ax2[num,n_m].violinplot([dist],positions=[x_loc],vert=True,widths=[.07],
+                                                    showmeans=False,showextrema=False)
+                        ax2[num,n_m].scatter([x_loc],[y],color=c)
+                        for pc in v['bodies']:
+                            pc.set_facecolor(c)
+                    else:    
+                        ax2[num,n_m].bar([x_loc],[y-bott],color=c,width=.07,bottom=[bott],alpha=.2)
+                        ax2[num,n_m].plot([x_loc,x_loc],rng,color=c)
                     if significant:
                         mark_sig(ax2[num,n_m],x_loc,c=c,yy=rng[1]*1.1)
                 #calculate individual based
@@ -250,11 +266,17 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                     else:
                         y,rng = bootstrap(value,n_boot=n_boot_meas,conf_interval=conf_interval)
                         significant=False
-                    if not plot_comparison:
-                        y,rng = bootstrap(value,n_boot=n_boot_meas,conf_interval=conf_interval)
                     x_loc2 = (i+1)*.07#len(pop_measure) + n_m2 + (i+1)*.07  #n_m2*(len(interest_list)+1)+i+1 + x_loc +1
-                    ax2[num,n_m2+len(pop_measure)].bar([x_loc2],[y-1],color=c,width=.07,bottom=[1],alpha=.2)
-                    ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color=c)
+                    if not plot_comparison:
+                        y,rng,dist = bootstrap(value,n_boot=n_boot_meas,conf_interval=conf_interval,return_samples=True)
+                        v = ax2[num,n_m].violinplot([dist],positions=[x_loc2],vert=True,widths=[.07],
+                                                    showmeans=False,showextrema=False)
+                        ax2[num,n_m].scatter([x_loc2],[y],color=c)
+                        for pc in v['bodies']:
+                            pc.set_facecolor(c)
+                    else:
+                        ax2[num,n_m2+len(pop_measure)].bar([x_loc2],[y-1],color=c,width=.07,bottom=[1],alpha=.2)
+                        ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color=c)
                     if significant:
                         mark_sig(ax2[num,n_m2+len(pop_measure)],x_loc,c=c,yy=rng[1]*1.1)
     ax[num].legend()
