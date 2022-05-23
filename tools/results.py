@@ -136,11 +136,11 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
 #             y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot,statistic=M)
             bott = 0
             if measure_compare in DIFFERENCE:
-                y,rng,significant = bootstrap_diff(yp_ref[:,loc:loc+10*120],yp_ref[:,loc:loc+10*120]
+                y,rng,significant = bootstrap_diff(yp_ref[:,loc:loc+15*120],yp_ref[:,loc:loc+15*120]
                                            ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
             elif measure_compare in RELATIVE:
                 bott = 1
-                y,rng,significant = bootstrap_relative(yp_ref[:,loc:loc+10*120],yp_ref[:,loc:loc+10*120]
+                y,rng,significant = bootstrap_relative(yp_ref[:,loc:loc+15*120],yp_ref[:,loc:loc+15*120]
                                            ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
             else:
                 y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
@@ -156,7 +156,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
         #calculate reference individual statistics
         for n_m2, M in enumerate(ind_measure):
             loc=np.argmin(xp**2)
-            value = M(yp_ref[:,loc:loc+10*120])
+            value = M(yp_ref[:,loc:loc+15*120])
             if measure_compare in DIFFERENCE:
                 y,rng,significant = bootstrap_diff(value,value,n_boot=n_boot_meas,measurement=None,conf_interval=conf_interval)
             elif measure_compare in RELATIVE:
@@ -222,11 +222,11 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                     loc=np.argmin(xp**2)
                     bott = 0
                     if measure_compare in DIFFERENCE:
-                        y,rng,significant = bootstrap_diff(yp[:,loc:loc+10*120],Y_REF[num][:,loc:loc+10*120]
+                        y,rng,significant = bootstrap_diff(yp[:,loc:loc+15*120],Y_REF[num][:,loc:loc+15*120]
                                                    ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
                     elif measure_compare in RELATIVE:
                         bott=1
-                        y,rng,significant = bootstrap_relative(yp[:,loc:loc+10*120],Y_REF[num][:,loc:loc+10*120]
+                        y,rng,significant = bootstrap_relative(yp[:,loc:loc+15*120],Y_REF[num][:,loc:loc+15*120]
                                                    ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
                     else:
                         y,rng = bootstrap(yp[:,loc:loc+10*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
@@ -241,8 +241,8 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 #calculate individual based
                 for n_m2, M in enumerate(ind_measure):
                     loc=np.argmin(xp**2)
-                    value = M(yp[:,loc:loc+10*120])
-                    value_ref = M(Y_REF[num][:,loc:loc+10*120])
+                    value = M(yp[:,loc:loc+15*120])
+                    value_ref = M(Y_REF[num][:,loc:loc+15*120])
                     if measure_compare in DIFFERENCE:
                         y,rng,significant = bootstrap_diff(value,value_ref,n_boot=n_boot_meas,measurement=None,conf_interval=conf_interval)
                     elif measure_compare in RELATIVE:

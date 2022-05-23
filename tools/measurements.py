@@ -30,7 +30,11 @@ def responseDuration(data,thresh=.3):
     x = np.median(data,axis=0)
     try:
         return np.where(x<=thresh)[0][0]/120
-    except: return 1/120 #return small value so don't get a divide by zero in comparison tests
+    except: 
+        if x.mean()>thresh: #if didn't go below threshold in sample window
+            return x.size/120
+        else:
+            return 1/120 #return small value so don't get a divide by zero in comparison tests
 
 def peakResponse(data):
     '''peak response of population trace'''
@@ -38,7 +42,7 @@ def peakResponse(data):
 
 def totalResponse_pop(data):
     '''total response of population trace'''
-    return np.mean(np.var((data>.5).astype(float),axis=0))#np.mean(np.median(data,axis=0))
+    return np.mean(np.median(data[:,:10*120],axis=0))#np.mean(np.var((data>.5).astype(float),axis=0))#
 
 def totalResponse(data):
     '''total response of individual trace'''
