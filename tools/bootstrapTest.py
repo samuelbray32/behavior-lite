@@ -138,13 +138,17 @@ def bootstrap_relative(data1, data2, measurement=None, sample_size=None, statist
             return y, rng, False
 
 
-def bootstrap(data,sample_size=None,statistic=np.median,conf_interval=95,n_boot=1e5,**kwargs):
+def bootstrap(data,sample_size=None,statistic=np.median,conf_interval=95,n_boot=1e5,
+              return_samples=False,**kwargs):
         if sample_size is None:
             sample_size = data.shape[0]
         bootstrap = []
         for i in range(int(n_boot)):
 #             bootstrap.append(statistic(np.random.choice(data,sample_size)))
             bootstrap.append(statistic(data[np.random.choice(np.arange(data.shape[0]),sample_size)],**kwargs))
-
+        if return_samples:
+                return np.mean(bootstrap,axis=0), [np.percentile(bootstrap,(100-conf_interval)/2,axis=0),
+                                                   np.percentile(bootstrap,conf_interval+(100-conf_interval)/2,axis=0)], bootstrap
+        
         return np.mean(bootstrap,axis=0), [np.percentile(bootstrap,(100-conf_interval)/2,axis=0),
                                     np.percentile(bootstrap,conf_interval+(100-conf_interval)/2,axis=0)]
