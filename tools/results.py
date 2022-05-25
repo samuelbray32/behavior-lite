@@ -255,7 +255,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                         ax2[num,n_m].plot([x_loc,x_loc],rng,color=c)
                     if significant:
                         mark_sig(ax2[num,n_m],x_loc,c=c,yy=rng[1]*1.1)
-                    ax2[num,n_m].set_ylim(ymin=0)
+#                     ax2[num,n_m].set_ylim(ymin=0)
                 #calculate individual based
                 for n_m2, M in enumerate(ind_measure):
                     loc=np.argmin(xp**2)
@@ -276,7 +276,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                         ax2[num,n_m].scatter([x_loc2],[y],color=c)
                         for pc in v['bodies']:
                             pc.set_facecolor(c)
-                        ax2[num,n_m].set_ylim(bottom=0)
+#                         ax2[num,n_m].set_ylim(bottom=0)
                     else:
                         ax2[num,n_m2+len(pop_measure)].bar([x_loc2],[y-1],color=c,width=.07,bottom=[1],alpha=.2)
                         ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color=c)
@@ -300,6 +300,8 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
     for a,lim in zip(ax,ylim):
         print(lim)
         a.set_ylim(lim)
+    for a in np.ravel(ax2):
+        a.set_ylim(ymin=0)
 #     if measure_compare in RELATIVE:
 #         ax2[-1].set_ylabel('<M(RNAi)/M(WT)>')
 #         ax2[0].set_yscale('log')
