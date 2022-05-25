@@ -47,7 +47,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,
     
     for num,power in enumerate(powers):
         xp=result['tau']
-        exclude_this=[] 
+        exclude_this=[]+exclude 
         interest_i = f'WT_30m2h{power}bp'    
         to_plot = data_of_interest(result.keys(),[interest_i],exclude_this)
         print(interest_i,to_plot)
@@ -109,7 +109,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,
             if not '+' in interest:
                 exclude_this.append('+')
             to_plot = data_of_interest(result.keys(),[f'{interest}_30m2h{power}bp'],exclude_this)
-            print(f'interest_30m2h{power}bp',to_plot)
+            print(f'{interest}_30m2h{power}bp',to_plot)
             if len(to_plot)==0: continue
             yp=[]
             for dat in to_plot:
@@ -189,4 +189,60 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,
 #     else:
 #         ax2[-1].set_ylabel('M(gene)')
 #     ax2[-1].set_xlabel('M')
+    return fig, ax
+
+
+def response_scaling(interest='WT',exclude=[],n_boot=1e3,statistic=np.median,
+                          measure_compare=None,ind_measure=[],
+                          pop_measure=[responseDuration,totalResponse_pop],
+                          conf_interval=95, stat_testing=True,powers =[4,8,16,32,64,128]): 
+    
+    '''compiles 5s and 30s data for given genes of interest and layers on plot'''
+    name = 'data/LDS_response_LONG.pickle'
+    with open(name,'rb') as f:
+        result = pickle.load(f)
+    #keys for measure_compare
+    DIFFERENCE = ['diff','difference','subtract']
+    RELATIVE = ['relative','rel','divide']
+    #significance marker
+    def mark_sig(ax,loc,c='grey'):
+        ax.scatter([loc,],12,marker='*',color=c)
+    #give extra n_boot to measurements
+    n_boot_meas = max(n_boot, 3e2)
+
+    fig, ax_all=plt.subplots(nrows=1, ncols=1, sharex='col', sharey='col',figsize=(12,5))
+#     if len(powers)==1: ax_all = ax_all[None,:]
+    ax = [ax_all]#[:,0]
+#     ax2 = ax_all[:,1]
+    tic_loc = []
+    tic_name=[]
+    #reference
+    Y_REF = []
+    
+    for num,power in enumerate(powers):
+        c = plt.cm.magma(num/len(powers))
+        xp=result['tau']
+        exclude_this=[]+exclude 
+        interest_i = f'{interest}_30m2h{power}bp'    
+        to_plot = data_of_interest(result.keys(),[interest_i],exclude_this)
+        print(interest_i,to_plot)
+        if len(to_plot)==0: continue
+        yp_ref=[]
+        for dat in to_plot:
+            yp_ref.extend(result[dat])
+        yp_ref = np.array(yp_ref)
+
+        Y_REF.append(yp_ref)
+        ind_t = np.where((xp>=-4)&(xp<=40))[0]
+        y,rng = bootstrap_traces(yp_ref[:,ind_t],n_boot=n_boot,statistic=statistic,conf_interval=conf_interval)
+        ax[0].plot(xp[ind_t],y,lw=1,color=c,zorder=-num,alpha=.6,label=f'{interest} {power}bp ({yp_ref.shape[0]})')
+        ax[0].fill_between(xp[ind_t],*rng,alpha=.2,color=c,lw=0,edgecolor='None', zorder=-10)
+        ax[0].set_ylim(0,2)
+        ax[0].set_yticks([0,1,2])
+        # ax[num].plot([0,0],[0,5],c='k',ls=':')
+        ax[0].fill_between([0,30,],[-1,-1],[10,10],facecolor='thistle',alpha=.2,zorder=-20)
+    ax[0].legend()
+    ax[0].set_xlim(-3,35)
+    ax[0].set_ylim(0,1.3)
+    
     return fig, ax
