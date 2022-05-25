@@ -174,7 +174,9 @@ def merge_regenerations(data,ref=None,day=None,conf_interval=99,n_boot=1e3,stat_
         for i,dat in enumerate(data):
             if d[i]>j or (j-d[i])>=len(result[dat]):
                 continue
+            if result[dat][j-d[i]].size==0: continue
             xx.append((result[dat][j-d[i]]))
+        if len(xx)==0: continue
         xx = np.concatenate(xx)
         if xx.size==0: continue
         if n_boot>1:
