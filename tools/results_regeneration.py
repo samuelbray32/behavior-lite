@@ -276,6 +276,7 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
     ax[0].plot(xp_ref,yy_ref,color='grey',zorder=-1)
     ax[0].fill_between(xp_ref,*rng_ref,alpha=.3,edgecolor=None,facecolor='grey',zorder=-2)
     
+    yy_comp = []
     for i in range(len(data)):
         c = plt.cm.Set1(i/9)
         xp = result['tau']
@@ -303,12 +304,27 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
             ax[0].plot(x_sig,bott-y_sig,**box_keys)
             ax[0].plot([ind_sig[0],ind_sig[0]],[bott[0],bott[0]-y_sig],**box_keys)
             ax[0].plot([10,10],[bott[0],bott[0]-y_sig],**box_keys)
+            yy_comp.append(yp_[:,ind_sig])
         sh=0
         if '30s' in data[i]: sh=.5
         if '5s' in data[i]: sh=5/60    
         ax[0].fill_between([-sh,0,],[-1,-1],[10,10],facecolor='thistle',alpha=.3,zorder=-20)
         ax[0].spines['right'].set_visible(False)
-
+    #stat test betweeen the 2 regenerations
+    if stat_testing and len(data)==2:
+            time_sig = timeDependentDifference(yy_comp[0],yy_comp[1],
+                                               n_boot=n_boot,conf_interval=conf_interval)
+            x_sig = xp[ind_sig]
+            y_sig = .1
+            bott = np.zeros_like(x_sig)+ylim[1]-2*y_sig
+            c='darkgoldenrod'
+            ax[0].fill_between(x_sig,bott,bott-y_sig*time_sig,
+                facecolor=c,alpha=.4)
+            box_keys={'lw':1, 'c':'k'}
+            ax[0].plot(x_sig,bott,**box_keys)
+            ax[0].plot(x_sig,bott-y_sig,**box_keys)
+            ax[0].plot([ind_sig[0],ind_sig[0]],[bott[0],bott[0]-y_sig],**box_keys)
+            ax[0].plot([10,10],[bott[0],bott[0]-y_sig],**box_keys)
     
     ax[0].set_ylim(ylim)
     plt.xlim(-3,10)
