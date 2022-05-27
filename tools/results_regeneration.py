@@ -229,3 +229,92 @@ def merge_regenerations(data,ref=None,day=None,conf_interval=99,n_boot=1e3,stat_
     plt.xlabel('time (min)')
     #ax[0].set_title(data + ': Whole Worm control')
     return fig, ax
+
+###############################################################################################################
+
+def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
+                      ylim=(0,2),stat_testing=True,conf_interval=99):
+    if ref is None:
+        if '30s' in data[0]:
+            ref = 'WT_30s'
+        elif '10s' in data[0]:
+            ref = 'WT_10s'
+        elif '1s' in data[0]:
+            ref = 'WT_1s'
+        else:
+            ref = 'WT'
+    if '30s' in data[0]:
+        sh=.5
+    elif '10s' in data[0]:
+        sh=10/60
+    elif '1s' in data[0]:
+        sh=1/60
+    else:
+        sh=5/60
+    
+    pl=25
+    ph=75
+
+    name = 'data/LDS_response_regen.pickle'
+    with open(name,'rb') as f:
+            result = pickle.load(f)
+    ref_name = 'data/LDS_response_uvRange.pickle'
+    ref_name = 'data/LDS_response_rnai.pickle'
+    with open(ref_name,'rb') as f:
+            result_ref = pickle.load(f)
+
+    fig, ax = plt.subplots(nrows=1,sharex=True,sharey=True,figsize=(8,6))
+    ax=[ax]
+    xx_ref=(result_ref[ref])
+    if n_boot>1:
+        yy_ref,rng_ref = bootstrap_traces(xx_ref,statistic=np.median,n_boot=n_boot,
+                                          conf_interval=conf_interval)
+    else:
+        yy_ref=np.median(xx_ref,axis=0)
+        rng_ref = (np.percentile(xx_ref,pl,axis=0),np.percentile(xx_ref,ph,axis=0))
+    xp_ref = result_ref['tau']
+    ax[0].plot(xp_ref,yy_ref,color='grey',zorder=-1)
+    ax[0].fill_between(xp_ref,*rng_ref,alpha=.3,edgecolor=None,facecolor='grey',zorder=-2)
+    
+    for i in range(len(data)):
+        c = plt.cm.Set1(i/9)
+        xp = result['tau']
+        yp_=(result[data[i]][dpa])
+        if yp_.size==0:
+            continue
+        y_,rng_ = bootstrap_traces(yp_,n_boot=n_boot,statistic=statistic)
+        ax[0].plot(xp,y_,label=data[i], color=c)
+        ax[0].fill_between(xp,*rng_,alpha=.3,edgecolor=None,facecolor=c)
+        #Do a time-dependent test on the reference and current condition
+        loc=np.argmin(xp**2)
+        ind_sig = np.arange(-5*120,10*120)+loc
+        loc_ref=np.argmin(xp_ref**2)
+        ind_sig_ref = np.arange(-5*120,10*120)+loc_ref
+        if stat_testing:
+            time_sig = timeDependentDifference(yp_[:,ind_sig],xx_ref[:,ind_sig_ref],
+                                               n_boot=n_boot,conf_interval=conf_interval)
+            x_sig = xp[ind_sig]
+            y_sig = .1
+            bott = np.zeros_like(x_sig)+ylim[1]-i*y_sig
+            ax[0].fill_between(x_sig,bott,bott-y_sig*time_sig,
+                facecolor=c,alpha=.4)
+            box_keys={'lw':1, 'c':'k'}
+            ax[0].plot(x_sig,bott,**box_keys)
+            ax[0].plot(x_sig,bott-y_sig,**box_keys)
+            ax[0].plot([ind_sig[0],ind_sig[0]],[bott[0],bott[0]-y_sig],**box_keys)
+            ax[0].plot([10,10],[bott[0],bott[0]-y_sig],**box_keys)
+        sh=0
+        if '30s' in data[i]: sh=.5
+        if '5s' in data[i]: sh=5/60    
+        ax[0].fill_between([-sh,0,],[-1,-1],[10,10],facecolor='thistle',alpha=.3,zorder=-20)
+        ax[0].spines['right'].set_visible(False)
+
+    
+    ax[0].set_ylim(ylim)
+    plt.xlim(-3,10)
+    ax[0].legend()
+    ax[0].set_title(f'Day {dpa}')
+    ax[0].set_ylabel('Z')
+    ax[0].set_xlabel('time (min)')
+    
+    return fig,ax
