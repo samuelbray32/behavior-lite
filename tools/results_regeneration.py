@@ -35,16 +35,20 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median,whole_re
             ref.append('standard_5s2h')
     if whole_ref:
         ref = []
+        name = 'data/LDS_response_rnai.pickle'
         for d in data:
             if '30s' in d:
-                ref.append('WT_30s')
+                if 'vibe' in d:
+                    name = 'data/LDS_response_vibration.pickle'
+                    ref.append('WT_30s75p')
+                else:
+                    ref.append('WT_30s')
             elif '10s' in d:
                 ref.append('WT_10s')
             elif '1s' in d:
                 ref.append('WT_1s')
             else:
                 ref.append('WT')
-        name = 'data/LDS_response_rnai.pickle'
         with open(name,'rb') as f:
             result_ref = pickle.load(f)
     
