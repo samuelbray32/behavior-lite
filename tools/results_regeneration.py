@@ -44,8 +44,10 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median,whole_re
                 else:
                     ref.append('WT_30s')
             elif '10s' in d:
+                name = 'data/LDS_response_uvRange.pickle'
                 ref.append('WT_10s')
             elif '1s' in d:
+                name = 'data/LDS_response_uvRange.pickle'
                 ref.append('WT_1s')
             else:
                 ref.append('WT')
@@ -159,10 +161,11 @@ def merge_regenerations(data,ref=None,day=None,conf_interval=99,n_boot=1e3,stat_
     with open(name,'rb') as f:
             result = pickle.load(f)
     ref_name = 'data/LDS_response_uvRange.pickle'
-    ref_name = 'data/LDS_response_rnai.pickle'
+#     ref_name = 'data/LDS_response_rnai.pickle'
     with open(ref_name,'rb') as f:
             result_ref = pickle.load(f)
-
+    print(ref_name)
+    print(result_ref.keys())
     fig, ax = plt.subplots(nrows=9,sharex=True,sharey=True,figsize=(4,16))
     xx_ref=(result_ref[ref])
     if n_boot>1:
@@ -338,3 +341,335 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
     ax[0].set_xlabel('time (min)')
     
     return fig,ax
+
+#############################################################################################################
+def excess_activity_regeneration(n_boot=1e3,statistic=np.median,
+                               integrate=10*120,pool=12,color_scheme=None,
+                                conf_interval=99):
+    
+    interest=[]
+    exclude=[]
+    name = 'data/LDS_response_regen_indPulse.pickle'
+    with open(name,'rb') as f:
+        result = pickle.load(f)
+    to_plot = ['WT_8hpa_30s2h','WT_8hpa_10s2h','WT_8hpa_5s2h','WT_8hpa_1s2h']
+    to_plot = [('WT_8hpa_30s2h','WT_79hpa_30s2h'),
+               ('WT_8hpa_10s2h',),
+               ('WT_8hpa_5s2h','WT_72hpa_5s2h'),
+                ('WT_8hpa_1s2h',)]#'WT_72hpa_1s2h')]
+#     to_plot = [('WT_8hpa_5s2h',),#'WT_72hpa_5s2h'),
+#                ('WT_8hpa_5s2h','WT_72hpa_5s2h'),]
+    to_plot.reverse()
+    to_plot.extend(data_of_interest(result.keys(),interest,exclude))
+    
+    subtract_ref=True #has to be for this analysis
+    reference = []
+    if subtract_ref:
+        ref_name = 'data/LDS_response_uvRange.pickle'
+        with open(ref_name,'rb') as f:
+            result_ref = pickle.load(f)
+        
+    max_t = 200
+    isi = integrate
+    integrate = isi
+    pulse_list = [0,]
+    sh = []
+
+    n_pulse=len(pulse_list)
+    fig, ax = plt.subplots(nrows=n_pulse,sharex=True,figsize=(12,8))
+    if n_pulse==1:
+        ax=[ax]
+    x_names = []
+    for ii,cond in enumerate(to_plot):
+        #print(cond)
+        excess_start = []
+        excess_end = []
+        y_all = []
+        from tqdm import tqdm
+#         #define reference
+#         if '5s2h' in cond:
+#             response = result_ref['WT']
+#             x_names.append('5')
+#         else:
+#             if 'hpa_' in cond:
+#                 x_st = cond.find('hpa_')
+#             else:
+#                 x_st = cond.find('hpi_')
+#             x_en = cond[x_st:].find('s')
+#             response = result_ref['WT_'+cond[x_st+4:x_st+x_en+1]]
+#             x_names.append(cond[x_st+4:x_st+x_en+1])
+# #                 response = result_ref[reference[ii]]
+        
+        #define reference
+        if '5s2h' in cond[0]:
+            response = result_ref['WT']
+            x_names.append('5')
+        else:
+            if 'hpa_' in cond[0]:
+                x_st = cond[0].find('hpa_')
+            else:
+                x_st = cond[0].find('hpi_')
+            x_en = cond[0][x_st:].find('s')
+            response = result_ref['WT_'+cond[0][x_st+4:x_st+x_en+1]]
+            x_names.append(cond[0][x_st+4:x_st+x_en+1])
+#                 response = result_ref[reference[ii]]
+
+        tau = result_ref['tau'].copy()
+        if sh:
+            tau -= sh[ii]
+        pulse=0
+        loc = np.argmin(result_ref['tau']**2)
+        from .bootstrapTest import bootstrap
+        from .measurements import totalResponse_pop as M
+        y,rng,dist = bootstrap(response[:,loc:loc+10*120],n_boot=1e3,statistic=M,
+                                               conf_interval=conf_interval,return_samples=True)
+#         data = bootstrapTest('reference', [response,], tau=tau,
+#                               n_pulse=max(pulse_list)+1, isi=isi,
+#                               integrate_time=integrate,experiment_list=None)
+#         y,rng = data.canonical_estimate([0,pulse],sample_size=None,
+#                                         statistic=statistic, n_boot=n_boot)
+        y_ref = y.copy()
+        #each bootstrap is a set of samples from all timepoints            
+        for count in tqdm(range(int(n_boot))):
+            for n_pulse, pulse in enumerate(pulse_list):
+                y = []
+                t_plot = []
+#                 response = result[cond]['data']
+#                 response_pool = [np.concatenate(response[i:i+pool]) for i in range(len(response))]
+                response = result[cond[0]]['data']
+                if len(cond)>1:
+                    init = int((result[cond[1]]['initial']-result[cond[0]]['initial'])/2)
+                    #print(result[cond[1]]['initial'],result[cond[0]]['initial'], init)
+                    for i,dat in enumerate(result[cond[1]]['data']):
+                        if i+init>=len(response):
+                            response.append(dat)
+                        else:
+                            response[init+i] = np.append(response[init+i],dat,axis=0)
+        
+                response_pool = [np.concatenate(response[i:i+pool]) for i in range(len(response))]
+                
+                
+                tau = result['tau'].copy()
+                if sh:
+                    tau -= sh[ii]
+#                 data = bootstrapTest('data', response_pool, tau=tau,
+#                                       n_pulse=max(pulse_list)+1, isi=isi,
+#                                       integrate_time=integrate,experiment_list=None)
+#                 for t in range(min(max_t,len(response))):
+#                     y_t, rng = data.canonical_estimate([t,pulse],sample_size=None,
+#                                                        statistic=statistic,n_boot=1)
+#                     y.append(y_t)
+#                     t_plot.append(t)
+#                 t_plot = np.array(t_plot) * result[cond[0]]['spacing'] + result[cond[0]]['initial']
+                t0 = np.argmin(tau)
+                for r in response_pool:
+                   y.append(np.median(r[np.random.choice(np.arange(r.shape[0]),r.shape[0],replace=True),
+                                        t0:t0+integrate],axis=0).mean())
+                t_plot = np.arange(len(y)) * result[cond[0]]['spacing'] + result[cond[0]]['initial']
+
+                y=np.array(y)
+                y_all.append(y)
+                if subtract_ref:
+                    y -= y_ref
+                #for this bootstrap, note the first and last timepoints the response is above reference
+                try:
+                    excess_start.append(t_plot[np.where(y>0)[0][0]])
+                except:
+                    continue
+#                     excess_start.append(t_plot[-1])
+                excess_end.append(t_plot[np.where(y>0)[0][-1]])
+                peak = np.argmax(y)
+#                 try:
+#                     excess_end.append(t_plot[peak:][np.where(y[peak:]<.1*y[peak])[0][0]])
+#                 except:
+#                     excess_end.append(t_plot[peak])
+#                 try:
+#                     excess_end.append(t_plot[peak:][np.where(y[peak:]<0)[0][0]])
+#                 except:
+#                     excess_end.append(t_plot[-1])
+
+#         plt.plot(t_plot,np.mean(y_all,axis=0),label=cond[0])
+#     plt.legend()
+        #calculate the mean and confidence range
+        excess_start = np.array(excess_start)
+        excess_end = np.array(excess_end)
+        if ii==0:
+            plt.scatter([ii],[excess_start.mean()],c='cornflowerblue',label='excess activity begins')
+            plt.scatter([ii],[excess_end.mean()],c='firebrick',label='excess activity ends')
+        else:
+            plt.scatter([ii],[excess_start.mean()],c='cornflowerblue')
+            plt.scatter([ii],[excess_end.mean()],c='firebrick')
+        start_lo = np.percentile(excess_start,(100-conf_interval)/2)
+        start_hi = np.percentile(excess_start,conf_interval+(100-conf_interval)/2)
+        plt.plot([ii,ii],[start_lo,start_hi],c='cornflowerblue')
+        end_lo = np.percentile(excess_end,(100-conf_interval)/2)
+        end_hi = np.percentile(excess_end,conf_interval+(100-conf_interval)/2)
+        plt.plot([ii,ii],[end_lo,end_hi],c='firebrick')
+        
+    plt.legend()
+    plt.xlabel('UV dose')
+    plt.ylabel('hpa')
+    plt.xticks(np.arange(ii+1),labels=x_names)
+    plt.legend()
+
+    return fig, ax
+
+
+#####################################################################################################
+
+
+
+
+
+
+def excess_activity_regeneration_v2(n_boot=1e3,statistic=np.median,
+                               integrate=10*120,pool=12,color_scheme=None,
+                                conf_interval=99):
+    
+    interest=[]
+    exclude=[]
+    name = 'data/LDS_response_regen_indPulse.pickle'
+    with open(name,'rb') as f:
+        result = pickle.load(f)
+    to_plot = ['WT_8hpa_30s2h','WT_8hpa_10s2h','WT_8hpa_5s2h','WT_8hpa_1s2h']
+    to_plot = [('WT_8hpa_30s2h','WT_79hpa_30s2h'),
+               ('WT_8hpa_10s2h',),
+               ('WT_8hpa_5s2h','WT_72hpa_5s2h'),
+                ('WT_8hpa_1s2h',)]#'WT_72hpa_1s2h')]
+#     to_plot = [('WT_8hpa_5s2h',),#'WT_72hpa_5s2h'),
+#                ('WT_8hpa_5s2h','WT_72hpa_5s2h'),]
+    to_plot.reverse()
+    to_plot.extend(data_of_interest(result.keys(),interest,exclude))
+    
+    subtract_ref=True #has to be for this analysis
+    reference = []
+    if subtract_ref:
+        ref_name = 'data/LDS_response_uvRange.pickle'
+        with open(ref_name,'rb') as f:
+            result_ref = pickle.load(f)
+        
+    max_t = 200
+    isi = integrate
+    integrate = isi
+    pulse_list = [0,]
+    sh = []
+
+    n_pulse=len(pulse_list)
+    fig, ax = plt.subplots(nrows=n_pulse,sharex=True,figsize=(12,8))
+    if n_pulse==1:
+        ax=[ax]
+    x_names = []
+    for ii,cond in enumerate(to_plot):
+        #print(cond)
+        excess_start = []
+        excess_end = []
+        y_all = []
+        from tqdm import tqdm
+        #define reference
+        if '5s2h' in cond[0]:
+            response = result_ref['WT']
+            x_names.append('5')
+        else:
+            if 'hpa_' in cond[0]:
+                x_st = cond[0].find('hpa_')
+            else:
+                x_st = cond[0].find('hpi_')
+            x_en = cond[0][x_st:].find('s')
+            response = result_ref['WT_'+cond[0][x_st+4:x_st+x_en+1]]
+            x_names.append(cond[0][x_st+4:x_st+x_en+1])
+#                 response = result_ref[reference[ii]]
+
+        tau = result_ref['tau'].copy()
+        if sh:
+            tau -= sh[ii]
+        pulse=0
+        loc = np.argmin(result_ref['tau']**2)
+        from .bootstrapTest import bootstrap
+        from .measurements import totalResponse_pop as M
+        y,rng,dist = bootstrap(response[:,loc:loc+10*120],n_boot=1e3,statistic=M,
+                                               conf_interval=conf_interval,return_samples=True)
+
+        y_ref = y.copy()
+                 
+        
+        dist_list = []
+        t_plot = []
+        for n_pulse, pulse in enumerate(pulse_list):
+            y = []
+            response = result[cond[0]]['data']
+            if len(cond)>1:
+                init = int((result[cond[1]]['initial']-result[cond[0]]['initial'])/2)
+                #print(result[cond[1]]['initial'],result[cond[0]]['initial'], init)
+                for i,dat in enumerate(result[cond[1]]['data']):
+                    if i+init>=len(response):
+                        response.append(dat)
+                    else:
+                        response[init+i] = np.append(response[init+i],dat,axis=0)
+
+            response_pool = [np.concatenate(response[i:i+pool]) for i in range(len(response))]
+
+
+            tau = result['tau'].copy()
+            if sh:
+                tau -= sh[ii]
+#                 data = bootstrapTest('data', response_pool, tau=tau,
+#                                       n_pulse=max(pulse_list)+1, isi=isi,
+#                                       integrate_time=integrate,experiment_list=None)
+#                 for t in range(min(max_t,len(response))):
+#                     y_t, rng = data.canonical_estimate([t,pulse],sample_size=None,
+#                                                        statistic=statistic,n_boot=1)
+#                     y.append(y_t)
+#                     t_plot.append(t)
+#                 t_plot = np.array(t_plot) * result[cond[0]]['spacing'] + result[cond[0]]['initial']
+            t0 = np.argmin(tau)
+            for r in response_pool:
+                y_i, rng_i,dist = bootstrap(r,statistic=M,n_boot=n_boot,return_samples=True)
+                dist_list.append(dist) 
+            
+            
+            
+            
+                if subtract_ref:
+                    y -= y_ref
+                #for this bootstrap, note the first and last timepoints the response is above reference
+                try:
+                    excess_start.append(t_plot[np.where(y>0)[0][0]])
+                except:
+                    continue
+#                     excess_start.append(t_plot[-1])
+                excess_end.append(t_plot[np.where(y>0)[0][-1]])
+                peak = np.argmax(y)
+#                 try:
+#                     excess_end.append(t_plot[peak:][np.where(y[peak:]<.1*y[peak])[0][0]])
+#                 except:
+#                     excess_end.append(t_plot[peak])
+#                 try:
+#                     excess_end.append(t_plot[peak:][np.where(y[peak:]<0)[0][0]])
+#                 except:
+#                     excess_end.append(t_plot[-1])
+
+#         plt.plot(t_plot,np.mean(y_all,axis=0),label=cond[0])
+#     plt.legend()
+        #calculate the mean and confidence range
+        excess_start = np.array(excess_start)
+        excess_end = np.array(excess_end)
+        if ii==0:
+            plt.scatter([ii],[excess_start.mean()],c='cornflowerblue',label='excess activity begins')
+            plt.scatter([ii],[excess_end.mean()],c='firebrick',label='excess activity ends')
+        else:
+            plt.scatter([ii],[excess_start.mean()],c='cornflowerblue')
+            plt.scatter([ii],[excess_end.mean()],c='firebrick')
+        start_lo = np.percentile(excess_start,(100-conf_interval)/2)
+        start_hi = np.percentile(excess_start,conf_interval+(100-conf_interval)/2)
+        plt.plot([ii,ii],[start_lo,start_hi],c='cornflowerblue')
+        end_lo = np.percentile(excess_end,(100-conf_interval)/2)
+        end_hi = np.percentile(excess_end,conf_interval+(100-conf_interval)/2)
+        plt.plot([ii,ii],[end_lo,end_hi],c='firebrick')
+        
+    plt.legend()
+    plt.xlabel('UV dose')
+    plt.ylabel('hpa')
+    plt.xticks(np.arange(ii+1),labels=x_names)
+    plt.legend()
+
+    return fig, ax
