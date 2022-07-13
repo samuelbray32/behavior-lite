@@ -240,7 +240,7 @@ def merge_regenerations(data,ref=None,day=None,conf_interval=99,n_boot=1e3,stat_
 ###############################################################################################################
 
 def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
-                      ylim=(0,2),stat_testing=True,conf_interval=99):
+                      ylim=(0,2),stat_testing=True,conf_interval=99,day_shift=None):
     if ref is None:
         if '30s' in data[0]:
             ref = 'WT_30s'
@@ -268,7 +268,7 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
     ref_name = 'data/LDS_response_uvRange.pickle'
     ref_name = 'data/LDS_response_rnai.pickle'
     with open(ref_name,'rb') as f:
-            result_ref = pickle.load(f)
+        result_ref = pickle.load(f)
 
     fig, ax = plt.subplots(nrows=1,sharex=True,sharey=True,figsize=(8,6))
     ax=[ax]
@@ -287,7 +287,18 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
     for i in range(len(data)):
         c = plt.cm.Set1(i/9)
         xp = result['tau']
-        yp_=(result[data[i]][dpa])
+        if type(data[i]) is str:
+            yp_=(result[data[i]][dpa])
+        else:
+            yp_ = []
+            for j in range(len(data)):
+                if day_shift is None:
+                    sh=0
+                else:
+                    sh = day_shift[i][j]
+                    print(sh)
+                yp_.append(result[data[i][j]][dpa-sh])
+            yp_ = np.concatenate(yp_,axis=0)
         if yp_.size==0:
             continue
         y_,rng_ = bootstrap_traces(yp_,n_boot=n_boot,statistic=statistic)
@@ -673,3 +684,151 @@ def excess_activity_regeneration_v2(n_boot=1e3,statistic=np.median,
     plt.legend()
 
     return fig, ax
+
+
+##############################################################################################################
+from .measurements import adaptationTime, peakResponse, totalResponse, totalResponse_pop, responseDuration
+from .measurements import sensitization, habituation,sensitizationRate,habituationRate, tPeak
+
+def rnai_regen_dailyStats(interest,exclude,n_boot=1e3,statistic=np.median,whole_ref=True,
+                       stat_testing=True,conf_interval=99, pop_measure=[responseDuration,totalResponse_pop,peakResponse],
+                         measure_compare='diff'):
+    
+    fig,ax = plt.subplots(nrows=len(pop_measure))
+    #keys for measure_compare
+    DIFFERENCE = ['diff','difference','subtract']
+    RELATIVE = ['relative','rel','divide']
+    #significance marker
+    def mark_sig(ax,loc,c='grey',yy=12):
+        ax.scatter([loc,],yy,marker='*',color=c)
+    
+    name = 'data/LDS_response_regen.pickle'
+    with open(name,'rb') as f:
+        result = pickle.load(f)
+    data = data_of_interest(result.keys(),interest,exclude)[0] 
+    if (type(data) is list) and len(data)>1:
+        print('WARNING: only analyzing first returned result from interest. Complete interest list is:')
+        print(data)
+        data = data[0]
+    result_ref = result
+    ref = []
+    if whole_ref:
+        ref = []
+        name = 'data/LDS_response_rnai.pickle'
+        d=data
+        if '30s' in d:
+            if 'vibe' in d:
+                name = 'data/LDS_response_vibration.pickle'
+                ref.append('WT_30s75p')
+            else:
+                ref.append('WT_30s')
+        elif '10s' in d:
+            name = 'data/LDS_response_uvRange.pickle'
+            ref.append('WT_10s')
+        elif '1s' in d:
+            name = 'data/LDS_response_uvRange.pickle'
+            ref.append('WT_1s')
+        else:
+            ref.append('WT')
+        with open(name,'rb') as f:
+            result_ref = pickle.load(f)
+        yp_ref = result_ref[ref[0]]            
+        loc_ref = np.argmin(result_ref['tau']**2)
+        for i,M in enumerate(pop_measure):
+            if measure_compare in DIFFERENCE:
+                y,rng,significant = bootstrap_diff(yp_ref[:,loc_ref:loc_ref+15*120],yp_ref[:,loc_ref:loc_ref+15*120]
+                                           ,n_boot=n_boot,measurement=M,conf_interval=conf_interval)
+            elif measure_compare in RELATIVE:
+                bott = 1
+                y,rng,significant = bootstrap_relative(yp_ref[:,loc_ref:loc_ref+15*120],yp_ref[:,loc_ref:loc_ref+15*120]
+                                           ,n_boot=n_boot,measurement=M,conf_interval=conf_interval)
+            else:
+                y,rng = bootstrap(yp_ref[:,loc_ref:loc_ref+15*120],n_boot=n_boot,statistic=M,conf_interval=conf_interval)
+            
+            y,rng,dist = bootstrap(yp_ref[:,loc_ref:loc_ref+15*120],n_boot=n_boot,statistic=M,
+                                   conf_interval=conf_interval, return_samples=True)
+            v = ax[i].violinplot([dist],positions=[-1],vert=True,widths=[1],showextrema=False)
+            ax[i].scatter([-1],[y],color='grey')
+            for pc in v['bodies']:
+                pc.set_facecolor('grey')
+    
+    loc = np.argmin(result['tau']**2)
+    for j in range(len (result[data])):
+        xp = result['tau']
+        yp=result[data][j]
+        if yp.size==0:
+            continue
+        #pull out first day as ref if not whole ref
+        if (not whole_ref) and (j==0):
+            yp_ref=result[data][0]
+            loc_ref = loc.copy()
+        for i,M in enumerate(pop_measure):
+            if measure_compare in DIFFERENCE:
+                y,rng,significant = bootstrap_diff(yp[:,loc:loc+15*120],yp_ref[:,loc_ref:loc_ref+15*120]
+                                           ,n_boot=n_boot,measurement=M,conf_interval=conf_interval)
+            elif measure_compare in RELATIVE:
+                bott = 1
+                y,rng,significant = bootstrap_relative(yp[:,loc:loc+15*120],yp_ref[:,loc_ref:loc_ref+15*120]
+                                           ,n_boot=n_boot,measurement=M,conf_interval=conf_interval)
+            else:
+                y,rng = bootstrap(yp[:,loc:loc+15*120],n_boot=n_boot,statistic=M,conf_interval=conf_interval)
+
+            y,rng,dist = bootstrap(yp[:,loc:loc+15*120],n_boot=n_boot,statistic=M,
+                                   conf_interval=conf_interval, return_samples=True)
+            v = ax[i].violinplot([dist],positions=[j],vert=True,widths=[1],showextrema=False)
+            c=plt.cm.cool(j/7)
+            ax[i].scatter([j],[y],color=c)
+            for pc in v['bodies']:
+                pc.set_facecolor(c)
+            if significant:
+                mark_sig(ax[i],j,c=c,yy=rng[1]*1.1)
+            
+    for a,M in zip(ax,pop_measure):
+        a.set_ylabel(M.__name__)
+        a.spines['top'].set_visible(False)
+        a.spines['right'].set_visible(False)
+    for a in ax[:-1]:
+        a.set_xticks([])
+        a.spines['bottom'].set_visible(False)
+    ax[-1].set_xlabel('day')
+        
+
+#         #Do a time-dependent test on the reference and current condition
+#         loc=np.argmin(xp**2)
+#         ind_sig = np.arange(-5*120,10*120)+loc
+#         loc_ref=np.argmin(xp_ref**2)
+#         ind_sig_ref = np.arange(-5*120,10*120)+loc_ref
+#         if stat_testing:
+#             time_sig = timeDependentDifference(yp_[:,ind_sig],yp[:,ind_sig_ref],
+#                                                n_boot=n_boot,conf_interval=conf_interval)
+#             x_sig = xp[ind_sig]
+#             y_sig = .1
+#             bott = np.zeros_like(x_sig)+ylim[i][1]
+#             ax[j,i].fill_between(x_sig,bott,bott-y_sig*time_sig,
+#                 facecolor=plt.cm.cool(j/7),alpha=.4)
+#             box_keys={'lw':1, 'c':'k'}
+#             ax[j,i].plot(x_sig,bott,**box_keys)
+#             ax[j,i].plot(x_sig,bott-y_sig,**box_keys)
+#             ax[j,i].plot([ind_sig[0],ind_sig[0]],[bott[0],bott[0]-y_sig],**box_keys)
+#             ax[j,i].plot([10,10],[bott[0],bott[0]-y_sig],**box_keys)
+#         sh=0
+#         if '30s' in data[i]: sh=.5
+#         if '5s' in data[i]: sh=5/60    
+#         ax[j,i].fill_between([-sh,0,],[-1,-1],[10,10],facecolor='thistle',alpha=.3,zorder=-20)
+#         ax[j,i].spines['top'].set_visible(False)
+#         ax[j,i].spines['right'].set_visible(False)
+#         if i>0:
+#             ax[j,i].spines['left'].set_visible(False)
+             
+#     fig.suptitle('regen control')
+#     #    ax[j].legend()
+#     plt.xlim(-3,20)
+#     #plt.yscale('log')
+#     ax[len(ax)//2,0].set_ylabel('Z')
+#     ax[-1,ax.shape[1]//2].set_xlabel('time (min)')
+
+#     for a in ax:
+#         a[0].set_yticks([0,1,2])
+        
+    return fig,ax
+
