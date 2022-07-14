@@ -240,7 +240,17 @@ def merge_regenerations(data,ref=None,day=None,conf_interval=99,n_boot=1e3,stat_
 ###############################################################################################################
 
 def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
-                      ylim=(0,2),stat_testing=True,conf_interval=99,day_shift=None):
+                      ylim=(0,2),stat_testing=True,conf_interval=99,day_shift=None,
+                      measure_compare='diff',pop_measure=[responseDuration,totalResponse_pop,peakResponse],
+                      plot_comparison=False,):
+    #keys for measure_compare
+    n_boot_meas=n_boot
+    DIFFERENCE = ['diff','difference','subtract']
+    RELATIVE = ['relative','rel','divide']
+    #significance marker
+    def mark_sig(ax,loc,c='grey',yy=12):
+        ax.scatter([loc,],yy,marker='*',color=c)
+    
     if ref is None:
         if '30s' in data[0]:
             ref = 'WT_30s'
@@ -261,7 +271,6 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
     
     pl=25
     ph=75
-
     name = 'data/LDS_response_regen.pickle'
     with open(name,'rb') as f:
             result = pickle.load(f)
@@ -270,9 +279,10 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
     with open(ref_name,'rb') as f:
         result_ref = pickle.load(f)
 
-    fig, ax = plt.subplots(nrows=1,sharex=True,sharey=True,figsize=(8,6))
-    ax=[ax]
+    fig, ax = plt.subplots(nrows=1,ncols=1+len(pop_measure),figsize=(15,10),
+                             gridspec_kw={'width_ratios': [4]+[1 for _ in range(len(pop_measure))]})
     xx_ref=(result_ref[ref])
+    yp_ref = xx_ref.copy()
     if n_boot>1:
         yy_ref,rng_ref = bootstrap_traces(xx_ref,statistic=np.median,n_boot=n_boot,
                                           conf_interval=conf_interval)
@@ -283,21 +293,51 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
     ax[0].plot(xp_ref,yy_ref,color='grey',zorder=-1)
     ax[0].fill_between(xp_ref,*rng_ref,alpha=.3,edgecolor=None,facecolor='grey',zorder=-2)
     
+    #calculate reference population statistics
+    ax2 = ax[1:]
+    for n_m, M in enumerate(pop_measure):
+        loc=np.argmin(xp_ref**2)
+        bott = 0
+        if measure_compare in DIFFERENCE:
+            y,rng,significant = bootstrap_diff(yp_ref[:,loc:loc+15*120],yp_ref[:,loc:loc+15*120]
+                                       ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
+        elif measure_compare in RELATIVE:
+            bott = 1
+            y,rng,significant = bootstrap_relative(yp_ref[:,loc:loc+15*120],yp_ref[:,loc:loc+15*120]
+                                       ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
+        else:
+            y,rng = bootstrap(yp_ref[:,loc:loc+15*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
+        x_loc = 0#n_m*(len(interest_list)+1)
+        if not plot_comparison:
+            y,rng,dist = bootstrap(yp_ref[:,loc:loc+15*120],n_boot=n_boot_meas,statistic=M,
+                                   conf_interval=conf_interval, return_samples=True)
+            v = ax2[n_m].violinplot([dist],positions=[0],vert=True,widths=[.07],showextrema=False)
+            ax2[n_m].scatter([x_loc],[y-bott],color='grey')
+            for pc in v['bodies']:
+                pc.set_facecolor('grey')
+        else:
+            ax2[n_m].bar([x_loc],[y-bott],color='grey',width=.07,bottom=[bott],alpha=.2)
+            ax2[n_m].plot([x_loc,x_loc],rng,color='grey')
+    
+    
+    #loop through datagroups
     yy_comp = []
     for i in range(len(data)):
+        print(i)
         c = plt.cm.Set1(i/9)
         xp = result['tau']
         if type(data[i]) is str:
-            yp_=(result[data[i]][dpa])
+            yp_=(result[data[i]][dpa+day_shift[i]])
         else:
             yp_ = []
-            for j in range(len(data)):
+            for j in range(len(data[i])):
                 if day_shift is None:
-                    sh=0
+                    d_sh=0
                 else:
-                    sh = day_shift[i][j]
-                    print(sh)
-                yp_.append(result[data[i][j]][dpa-sh])
+#                     print(i,day_shift,day_shift[i])
+                    d_sh = day_shift[i][j]
+#                     print(d_sh)
+                yp_.append(result[data[i][j]][dpa-d_sh])
             yp_ = np.concatenate(yp_,axis=0)
         if yp_.size==0:
             continue
@@ -328,6 +368,38 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
         if '5s' in data[i]: sh=5/60    
         ax[0].fill_between([-sh,0,],[-1,-1],[10,10],facecolor='thistle',alpha=.3,zorder=-20)
         ax[0].spines['right'].set_visible(False)
+        #calculate population based measures
+        for n_m, M in enumerate(pop_measure):
+            loc=np.argmin(xp**2)
+            loc_ref=np.argmin(xp_ref**2)
+            bott = 0
+            if measure_compare in DIFFERENCE:
+                y,rng,significant = bootstrap_diff(yp_[:,loc:loc+15*120],yp_ref[:,loc_ref:loc_ref+15*120]
+                                           ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
+            elif measure_compare in RELATIVE:
+                bott=1
+                y,rng,significant = bootstrap_relative(yp_[:,loc:loc+15*120],yp_ref[:,loc_ref:loc_ref+15*120]
+                                           ,n_boot=n_boot_meas,measurement=M,conf_interval=conf_interval)
+            else:
+                y,rng = bootstrap(yp_[:,loc:loc+15*120],n_boot=n_boot_meas,statistic=M,conf_interval=conf_interval)
+                significant=False
+            x_loc= (i+1)*.07# n_m + (i+1)*.07   #n_m*(len(interest_list)+1)+i+1
+            if not plot_comparison:
+                y,rng,dist = bootstrap(yp_[:,loc:loc+15*120],n_boot=n_boot_meas,statistic=M,
+                                       conf_interval=conf_interval,return_samples=True)
+                v = ax2[n_m].violinplot([dist],positions=[x_loc],vert=True,widths=[.07],
+                                            showmeans=False,showextrema=False)
+                ax2[n_m].scatter([x_loc],[y],color=c)
+                for pc in v['bodies']:
+                    pc.set_facecolor(c)
+
+            else:    
+                ax2[n_m].bar([x_loc],[y-bott],color=c,width=.07,bottom=[bott],alpha=.2)
+                ax2[n_m].plot([x_loc,x_loc],rng,color=c)
+            if significant:
+                mark_sig(ax2[n_m],x_loc,c=c,yy=rng[1]*1.1)
+    
+    
     #stat test betweeen the 2 regenerations
     if stat_testing and len(data)==2:
             time_sig = timeDependentDifference(yy_comp[0],yy_comp[1],
@@ -343,14 +415,19 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
             ax[0].plot(x_sig,bott-y_sig,**box_keys)
             ax[0].plot([ind_sig[0],ind_sig[0]],[bott[0],bott[0]-y_sig],**box_keys)
             ax[0].plot([10,10],[bott[0],bott[0]-y_sig],**box_keys)
+            
+    
     
     ax[0].set_ylim(ylim)
-    plt.xlim(-3,10)
+    ax[0].set_xlim(-3,10)
     ax[0].legend()
     ax[0].set_title(f'Day {dpa}')
     ax[0].set_ylabel('Z')
     ax[0].set_xlabel('time (min)')
-    
+    for a,M in zip(ax2,pop_measure):
+        a.spines['right'].set_visible(False)
+        a.spines['top'].set_visible(False)
+        a.set_title(M.__name__)
     return fig,ax
 
 #############################################################################################################
