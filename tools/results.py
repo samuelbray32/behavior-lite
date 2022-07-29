@@ -15,6 +15,9 @@ def data_of_interest(names,interest=[],exclude=[]):
                 keep = True
                 for ex in exclude:
                     if ex in dat: keep = False
+                #check double/triple knockdown
+                if dat.count('+')>i.count('+'):
+                    keep=False
                 if keep: to_plot.append(dat)
     return to_plot
 
@@ -71,7 +74,7 @@ def rnai_response(interest,exclude,n_boot=1e3,statistic=np.median,regeneration=F
 def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,drugs=False,
                           measure_compare=None,ind_measure=[],
                           pop_measure=[responseDuration,totalResponse_pop,peakResponse],
-                          pulseTimes=[5,30],conf_interval=95, stat_testing=True,
+                          pulseTimes=[5,30],conf_interval=99, stat_testing=True,
                          plot_comparison=True, ylim=(0,2)): #peakResponse,
     '''compiles 5s and 30s data for given genes of interest and layers on plot'''
     name = 'data/LDS_response_rnai.pickle'
@@ -179,7 +182,8 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color='grey')
             tic_loc.append(x_loc2)
             tic_name.append(M.__name__)
-
+    
+    ''' Loop through genes'''
     for i,interest in enumerate(interest_list):
         c=plt.cm.Set1(i/9)
         for num,pulse in enumerate(pulseTimes):
@@ -322,6 +326,7 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
     with open(name,'rb') as f:
         result = pickle.load(f)
     to_plot = ['WT_8hpa_30s2h','WT_8hpa_10s2h','WT_8hpa_5s2h','WT_8hpa_1s2h']
+    to_plot.reverse()
     to_plot.extend(data_of_interest(result.keys(),interest,exclude))
 
     reference = []
@@ -404,6 +409,9 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
                 y -= y_ref
                 lo -= y_ref
                 hi -= y_ref
+                y /= y_ref
+                lo /= y_ref
+                hi /= y_ref
                 # y = np.log10(y/y_ref)
                 # lo = np.log10(lo/y_ref)
                 # hi = np.log10(hi/y_ref)
@@ -413,7 +421,7 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
             ax[n_pulse].fill_between(t_plot,lo,hi,facecolor=c,alpha=.2)
 
     if subtract_ref:
-        plt.plot(t_plot,0*t_plot,c='k',alpha=.5,ls='-.' )
+        plt.plot(t_plot,np.ones_like(t_plot)*0,c='k',alpha=.5,ls='-.' )
     plt.legend()
     plt.xlabel('hours')
     plt.ylabel(f'integrated activity 0-{isi/120} min')
@@ -625,17 +633,22 @@ def pulseTrain_trialDependent(interest=['WT_regen'],exclude=[],n_boot=1e3,statis
             a[1].plot(xp,y,color=c,ls=':')
             a[1].fill_between(xp,lo,hi,alpha=.1,facecolor=c,zorder=-1)
             a[0].set_ylim(0,1.5)
-            #do scalar measurements
-            Values = np.array(Values).T
-            for k,M in enumerate(measurements):
-                v = M(Values)
-                yy, rng = bootstrap(v,statistic=np.mean,n_boot=10*n_boot)
-                measured_scalars[k].append(yy)
-                measured_scalars_lo[k].append(rng[0])
-                measured_scalars_hi[k].append(rng[1])
-                xx = k+(j-trial_rng[0])/(trial_rng[1]-trial_rng[0])/2
-                a[2].scatter([xx],[yy],color=c)
-                a[2].plot([xx,xx],rng,c=c)
+#             #do scalar measurements
+#             Values = np.array(Values).T
+#             for k,M in enumerate(measurements):
+#                 try:
+#                     v = M(Values)
+#                 except:
+#                     print(result[dat].keys())
+#                     isi = result[dat]['delay']
+#                     v = M(Values,n_i,isi,isi)
+#                 yy, rng = bootstrap(v,statistic=np.mean,n_boot=10*n_boot)
+#                 measured_scalars[k].append(yy)
+#                 measured_scalars_lo[k].append(rng[0])
+#                 measured_scalars_hi[k].append(rng[1])
+#                 xx = k+(j-trial_rng[0])/(trial_rng[1]-trial_rng[0])/2
+#                 a[2].scatter([xx],[yy],color=c)
+#                 a[2].plot([xx,xx],rng,c=c)
 
 
             if i<len(to_plot)-1:
