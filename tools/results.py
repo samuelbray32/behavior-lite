@@ -75,7 +75,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                           measure_compare=None,ind_measure=[],
                           pop_measure=[responseDuration,totalResponse_pop,peakResponse],
                           pulseTimes=[5,30],conf_interval=99, stat_testing=True,
-                         plot_comparison=True, ylim=(0,2)): #peakResponse,
+                         plot_comparison=True, ylim=(0,2),control_rnai=False): #peakResponse,
     '''compiles 5s and 30s data for given genes of interest and layers on plot'''
     name = 'data/LDS_response_rnai.pickle'
     if drugs:
@@ -90,7 +90,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
         ax.scatter([loc,],yy,marker='*',color=c)
     #give extra n_boot to measurements
     n_boot_meas = max(n_boot, 3e2)
-    
+
     if not(type(ylim[0]) is tuple):
         ylim = (ylim,ylim)
     fig, ax_all=plt.subplots(nrows=len(pulseTimes), ncols=1+len(pop_measure)+len(ind_measure),
@@ -105,18 +105,21 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
     for num,pulse in enumerate(pulseTimes):
         xp=result['tau']-pulse/60
         exclude_this=['35mm','p']
-        if pulse==5:
-            yp_ref = result['WT']
-
-        else:
-            yp_ref = result[f'WT_{pulse}s']
+        # if pulse==5:
+        #     yp_ref = result['WT']
+        # else:
+        #     yp_ref = result[f'WT_{pulse}s']
 
         if pulse==5:
             exclude_this.extend(['_30s','_1s','_'])
-            interest_i='WT'
+            interest_i=['WT']
+            if control_rnai:
+                interest_i.append('cntrl')
         else:
-            interest_i = f'WT_{pulse}s'
-        to_plot = data_of_interest(result.keys(),[interest_i],exclude_this)
+            interest_i = [f'WT_{pulse}s']
+            if control_rnai:
+                interest_i.append(f'cntrl_{pulse}s')
+        to_plot = data_of_interest(result.keys(),interest_i,exclude_this)
         if len(to_plot)==0: continue
         print(to_plot)
         yp_ref=[]
@@ -127,14 +130,15 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
         Y_REF.append(yp_ref)
         ind_t = np.where((xp>=-4)&(xp<=11))[0]
         y,rng = bootstrap_traces(yp_ref[:,ind_t],n_boot=n_boot,statistic=statistic,conf_interval=conf_interval)
-        ax[num].plot(xp[ind_t],y,lw=1,color='grey',zorder=20,alpha=.6,label=f'WT {yp_ref.shape[0]}')
+        ax[num].plot(xp[ind_t],y,lw=1,color='grey',zorder=20,alpha=.6,label=f'WT ({yp_ref.shape[0]})')
         ax[num].fill_between(xp[ind_t],*rng,alpha=.2,color='grey',lw=0,edgecolor='None', zorder=-1)
-        ax[num].set_ylim(0,2)
+        ax[num].set_ylim(*(ylim[num]))
         ax[num].set_yticks([0,1,2])
         # ax[num].plot([0,0],[0,5],c='k',ls=':')
         ax[num].fill_between([-pulse/60,0,],[-1,-1],[10,10],facecolor='thistle',alpha=.3,zorder=-20)
         #calculate reference population statistics
         for n_m, M in enumerate(pop_measure):
+            if not stat_testing: continue
             loc=np.argmin(xp**2)
 #             y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot,statistic=M)
             bott = 0
@@ -163,6 +167,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
 
         #calculate reference individual statistics
         for n_m2, M in enumerate(ind_measure):
+            if not stat_testing: continue
             loc=np.argmin(xp**2)
             value = M(yp_ref[:,loc:loc+15*120])
             if measure_compare in DIFFERENCE:
@@ -182,7 +187,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color='grey')
             tic_loc.append(x_loc2)
             tic_name.append(M.__name__)
-    
+
     ''' Loop through genes'''
     for i,interest in enumerate(interest_list):
         c=plt.cm.Set1(i/9)
@@ -219,7 +224,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
             if stat_testing:
                 time_sig = timeDependentDifference(yp[:,ind_sig],Y_REF[num][:,ind_sig],n_boot=n_boot,conf_interval=conf_interval)
                 x_sig = xp[ind_sig]#np.arange(0,10,1/120)
-                y_sig = .1
+                y_sig = .1*(ylim[num][1]-ylim[num][0])
                 if len(interest_list)>1:
                     y_sig=2*y_sig/len(interest_list)
                 bott = np.zeros_like(x_sig)+ylim[num][1] - i*y_sig
@@ -231,7 +236,7 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 ax[num].plot([ind_sig[0],ind_sig[0]],[bott[0],bott[0]-y_sig],**box_keys)
                 ax[num].plot([10,10],[bott[0],bott[0]-y_sig],**box_keys)
 #                 ax[num].set_ylim(bott[0]-y_sig,2)
-                
+
                 #calculate population based measures
                 for n_m, M in enumerate(pop_measure):
                     loc=np.argmin(xp**2)
@@ -255,8 +260,8 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                         ax2[num,n_m].scatter([x_loc],[y],color=c)
                         for pc in v['bodies']:
                             pc.set_facecolor(c)
-                        
-                    else:    
+
+                    else:
                         ax2[num,n_m].bar([x_loc],[y-bott],color=c,width=.07,bottom=[bott],alpha=.2)
                         ax2[num,n_m].plot([x_loc,x_loc],rng,color=c)
                     if significant:
@@ -288,8 +293,8 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                         ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color=c)
                     if significant:
                         mark_sig(ax2[num,n_m2+len(pop_measure)],x_loc,c=c,yy=rng[1]*1.1)
-    ax[num].legend()
-    
+        ax[num].legend()
+
     for a in np.ravel(ax2):
         a.plot([-.1,1],[bott,bott],c='k',lw=.5)
         a.set_xticks([])
@@ -334,7 +339,7 @@ def total_response_regeneration(interest,exclude,n_boot=1e3,statistic=np.median,
         ref_name = 'data/LDS_response_uvRange.pickle'
         with open(ref_name,'rb') as f:
             result_ref = pickle.load(f)
-        
+
     max_t = 200
     isi = integrate
     integrate = isi
