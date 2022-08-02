@@ -291,7 +291,7 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
     else:
         yy_ref=np.median(xx_ref,axis=0)
         rng_ref = (np.percentile(xx_ref,pl,axis=0),np.percentile(xx_ref,ph,axis=0))
-    xp_ref = result_ref['tau']
+    xp_ref = result_ref['tau']-sh
     ax[0].plot(xp_ref,yy_ref,color='grey',zorder=-1)
     ax[0].fill_between(xp_ref,*rng_ref,alpha=.3,edgecolor=None,facecolor='grey',zorder=-2)
 
@@ -324,10 +324,11 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
 
     #loop through datagroups
     yy_comp = []
+    xp = result['tau']-sh
     for i in range(len(data)):
         print(i)
         c = plt.cm.Set1(i/9)
-        xp = result['tau']
+
         if type(data[i]) is str:
             yp_=(result[data[i]][dpa+day_shift[i]])
         else:
@@ -344,7 +345,7 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
         if yp_.size==0:
             continue
         y_,rng_ = bootstrap_traces(yp_,n_boot=n_boot,statistic=statistic)
-        ax[0].plot(xp,y_,label=data[i], color=c)
+        ax[0].plot(xp,y_,label=f'{data[i]} ({yp_.shape[0]})', color=c)
         ax[0].fill_between(xp,*rng_,alpha=.3,edgecolor=None,facecolor=c)
         #Do a time-dependent test on the reference and current condition
         loc=np.argmin(xp**2)
