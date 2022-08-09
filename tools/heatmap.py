@@ -125,9 +125,10 @@ def behavior_heatmap(interest_list,exclude,n_boot=1e3,statistic=np.median,
                 phenotypes[num*len(pop_measure)+n_m].append(y)
      phenotypes=np.array(phenotypes)
      if measure_compare in RELATIVE:
-         phenotypes=np.log2(phenotypes)
-     # c_max = np.max(np.abs(phenotypes))
-     plt.imshow(phenotypes.T,cmap='RdBu')#clim=(-c_max,c_max),
+         phenotypes=np.log2(phenotypes+1e-6)
+     c_max = min(np.nanmax(np.abs(phenotypes)),3)
+     print(c_max)
+     plt.imshow(phenotypes.T,cmap='RdBu',clim=(-c_max,c_max))
      plt.colorbar()
      plt.yticks(np.arange(len(phenotypes_names)),labels=phenotypes_names)
 
