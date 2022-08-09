@@ -26,7 +26,8 @@ def behavior_heatmap(interest_list,exclude,n_boot=1e3,statistic=np.median,
                           measure_compare=None,ind_measure=[],
                           pop_measure=[responseDuration,totalResponse_pop,peakResponse],
                           pulseTimes=[5,30],conf_interval=99, stat_testing=True,
-                         plot_comparison=True, ylim=(0,2),control_rnai=False):
+                         plot_comparison=True, ylim=(0,2),control_rnai=False,
+                         cmap_clip=3):
 
      name = 'data/LDS_response_rnai.pickle'
      with open(name,'rb') as f:
@@ -126,7 +127,7 @@ def behavior_heatmap(interest_list,exclude,n_boot=1e3,statistic=np.median,
      phenotypes=np.array(phenotypes)
      if measure_compare in RELATIVE:
          phenotypes=np.log2(phenotypes+1e-6)
-     c_max = min(np.nanmax(np.abs(phenotypes)),3)
+     c_max = min(np.nanmax(np.abs(phenotypes)),cmap_clip)
      print(c_max)
      plt.imshow(phenotypes.T,cmap='RdBu',clim=(-c_max,c_max))
      plt.colorbar()
