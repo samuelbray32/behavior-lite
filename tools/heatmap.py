@@ -103,7 +103,10 @@ def behavior_heatmap(interest_list,exclude,n_boot=1e3,statistic=np.median,
             if not 'PreRegen' in interest:
                 exclude_this.append('PreRegen')
             to_plot = data_of_interest(result.keys(),[interest_i],exclude_this)
-            if len(to_plot)==0: continue
+            if len(to_plot)==0:
+                for n_m, M in enumerate(pop_measure):
+                    phenotypes[num*len(pop_measure)+n_m].append(np.nan)
+                continue
             print(to_plot)
             yp=[]
             for dat in to_plot:
