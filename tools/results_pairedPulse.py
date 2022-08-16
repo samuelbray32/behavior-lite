@@ -117,9 +117,10 @@ def compareDelays_rnai(conditions=['WT'],pulse1=5, pulse2=5, delay=[.5,1,3,5,30]
         result_ref = pickle.load(f)
 
     colors=['cornflowerblue','firebrick','goldenrod']
+    ref_dist = [] #WT at each delay
     for ii,cond in enumerate(conditions):
 
-        #solve for the reference
+        #solve for the reference (no pre-pulse)
         if pulse2==5:
             ref = data_of_interest(result_ref.keys(),[cond],['+','_','amp','Eye'])#'WT'#'022421pc2'#
         else:
@@ -157,6 +158,7 @@ def compareDelays_rnai(conditions=['WT'],pulse1=5, pulse2=5, delay=[.5,1,3,5,30]
             ax[n_m].plot([-.5,x_loc+.5],[y,y],c='grey',ls=':')
 
         c=colors[ii]
+
         #loop through conditions
         for i,d in enumerate(delay):
 
@@ -180,14 +182,28 @@ def compareDelays_rnai(conditions=['WT'],pulse1=5, pulse2=5, delay=[.5,1,3,5,30]
                     bott=1
                     y,rng,significant,dist = bootstrap_relative(yp[:,loc:loc+15*120],yp_ref[:,loc_ref:loc_ref+15*120]
                                                ,n_boot=n_boot,measurement=M,conf_interval=conf_interval,return_samples=True)
+                # else:
+                #     y,rng,dist = bootstrap(yp[:,loc:loc+15*120],n_boot=n_boot,statistic=M,
+                #                            conf_interval=conf_interval,return_samples=True)
+                #     significant=False
+                #test for difference in sensitization vs. WT
+                if ii==0:
+                    # _,__,ref_dist_i = bootstrap(yp[:,loc:loc+15*120],n_boot=n_boot,statistic=M,
+                    #                        conf_interval=conf_interval,return_samples=True)
+                    # ref_dist.append(ref_dist_i)
+                    ref_dist.append(dist)
+                    sig_sense=False
                 else:
-                    y,rng,dist = bootstrap(yp[:,loc:loc+15*120],n_boot=n_boot,statistic=M,
-                                           conf_interval=conf_interval,return_samples=True)
-                    significant=False
+                   sig_sense = False
+                   delta_sense = dist-ref_dist[i]
+                   print(np.percentile(delta_sense,(100-conf_interval)/2),np.percentile(delta_sense,100-(100-conf_interval)/2))
+                   if np.percentile(delta_sense,(100-conf_interval)/2)>0 or np.percentile(delta_sense,100-(100-conf_interval)/2)<0:
+                       sig_sense=True
+
                 x_loc= i + ii*.2
-                if not plot_comparison:
-                    y,rng,dist = bootstrap(yp[:,loc:loc+15*120],n_boot=n_boot,statistic=M,
-                                           conf_interval=conf_interval,return_samples=True)
+                # if not plot_comparison:
+                #     y,rng,dist = bootstrap(yp[:,loc:loc+15*120],n_boot=n_boot,statistic=M,
+                #                            conf_interval=conf_interval,return_samples=True)
                 v = ax[n_m].violinplot([dist],positions=[x_loc],vert=True,widths=[width],
                                             showmeans=False,showextrema=False)
                 if i==0:
@@ -198,6 +214,8 @@ def compareDelays_rnai(conditions=['WT'],pulse1=5, pulse2=5, delay=[.5,1,3,5,30]
                     pc.set_facecolor(c)
                 if significant:
                     mark_sig(ax[n_m],x_loc,c=c,yy=rng[1]*1.1)
+                if sig_sense:
+                    mark_sig(ax[n_m],x_loc,c='k',yy=rng[1]*1.1+.1)
     ax[-1].set_xticks(np.arange(len(delay)+1))
     ax[-1].set_xticklabels(delay+[120])
     ax[-1].set_xlabel('Delay (min)')
