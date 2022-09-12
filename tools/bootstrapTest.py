@@ -97,7 +97,7 @@ def timeDependentDifference(data,ref,n_boot=1e3,conf_interval=99):
 
 
 def bootstrap_compare(data1, data2, operator=np.subtract, measurement=None, sample_size=None, statistic=np.mean,
-                       n_boot=1e3, conf_interval=95,**kwargs):
+                       n_boot=1e3, conf_interval=95,return_samples=False,**kwargs):
     '''bootstap comparison of samples from 2 datasets'''
     #measurement: the value being calculated from samples (see measurement.py)
     #    ***for efficiency, precalculate measurement and use None value for non-population averaged measures
@@ -116,13 +116,22 @@ def bootstrap_compare(data1, data2, operator=np.subtract, measurement=None, samp
                     )
             ))
     bootstrap = np.array(bootstrap)
+    if return_samples:
+        return np.mean(bootstrap), [np.percentile(bootstrap,(100-conf_interval)/2),
+                                    np.percentile(bootstrap,conf_interval+(100-conf_interval)/2)], bootstrap
+    
     return np.mean(bootstrap), [np.percentile(bootstrap,(100-conf_interval)/2),
                                     np.percentile(bootstrap,conf_interval+(100-conf_interval)/2)]
 
 def bootstrap_diff(data1, data2, measurement=None, sample_size=None, statistic=np.mean,
-                       n_boot=1e3, conf_interval=95,**kwargs):
-        y,rng = bootstrap_compare(data1, data2, np.subtract, measurement,
-                sample_size, statistic,n_boot, conf_interval,**kwargs)
+                       n_boot=1e3, conf_interval=95,return_samples=False,**kwargs):
+        y,rng,boot = bootstrap_compare(data1, data2, np.subtract, measurement,
+                sample_size, statistic,n_boot, conf_interval,return_samples=True,**kwargs)
+        if return_samples:
+            if rng[0]>0 or rng[1]<0:
+                return y, rng, True, boot
+            else:
+                return y, rng, False, boot
         if rng[0]>0 or rng[1]<0:
             return y, rng, True
         else:

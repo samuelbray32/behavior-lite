@@ -15,6 +15,10 @@ def data_of_interest(names,interest=[],exclude=[]):
                 keep = True
                 for ex in exclude:
                     if ex in dat: keep = False
+                #check double/triple knockdown
+                if dat.count('+')>i.count('+'):
+                    print(dat)
+                    keep=False
                 if keep: to_plot.append(dat)
     return to_plot
 

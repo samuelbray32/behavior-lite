@@ -138,7 +138,9 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
         ax[num].fill_between([-pulse/60,0,],[-1,-1],[10,10],facecolor='thistle',alpha=.3,zorder=-20)
         #calculate reference population statistics
         for n_m, M in enumerate(pop_measure):
-            if not stat_testing: continue
+            bott=0
+            if not stat_testing:
+                continue
             loc=np.argmin(xp**2)
 #             y,rng = bootstrap(yp_ref[:,loc:loc+10*120],n_boot=n_boot,statistic=M)
             bott = 0
@@ -203,10 +205,14 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                 interest_i = interest+f'_{pulse}s'
                 xp=result['tau']-pulse/60
                 # yp_ref=result['WT_30s']
-            if not '+' in interest:
-                exclude_this.append('+')
-            if not 'PreRegen' in interest:
-                exclude_this.append('PreRegen')
+            conditional_exclude = ['+','PreRegen','1F']
+            for c_e in conditional_exclude:
+                if not c_e in interest:
+                    exclude_this.append(c_e)
+            # if not '+' in interest:
+            #     exclude_this.append('+')
+            # if not 'PreRegen' in interest:
+            #     exclude_this.append('PreRegen')
             to_plot = data_of_interest(result.keys(),[interest_i],exclude_this)
             if len(to_plot)==0: continue
             print(to_plot)
@@ -293,14 +299,15 @@ def rnai_response_layered(interest_list,exclude,n_boot=1e3,statistic=np.median,d
                         ax2[num,n_m2+len(pop_measure)].plot([x_loc2,x_loc2],rng,color=c)
                     if significant:
                         mark_sig(ax2[num,n_m2+len(pop_measure)],x_loc,c=c,yy=rng[1]*1.1)
+        ax[0].legend()
         ax[num].legend()
-
-    for a in np.ravel(ax2):
-        a.plot([-.1,1],[bott,bott],c='k',lw=.5)
-        a.set_xticks([])
-        a.set_xlim(-.07,x_loc+.07)
-        for q in ['top','right',]:#'bottom']:
-            a.spines[q].set_visible(False)
+    if stat_testing:
+        for a in np.ravel(ax2):
+            a.plot([-.1,1],[bott,bott],c='k',lw=.5)
+            a.set_xticks([])
+            a.set_xlim(-.07,x_loc+.07)
+            for q in ['top','right',]:#'bottom']:
+                a.spines[q].set_visible(False)
     for label,a in zip(tic_name,ax2.T):
         a[0].set_title(label)
 #     ax2[-1,-1].set_xticks(tic_loc)

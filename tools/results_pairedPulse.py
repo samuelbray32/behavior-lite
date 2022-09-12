@@ -96,7 +96,8 @@ def plotTrace(conditions='WT',pulse1=5, pulse2=5, delay=3,
 
 def compareDelays_rnai(conditions=['WT'],pulse1=5, pulse2=5, delay=[.5,1,3,5,30],
                  pop_measure=[totalResponse_pop,],n_boot=1e2,conf_interval=99,
-                 plot_comparison=False,measure_compare='diff',experiment='uv-uv'):#responseDuration,peakResponse
+                 plot_comparison=False,measure_compare='diff',experiment='uv-uv',
+                 control_rnai=False):#responseDuration,peakResponse
 
     fig,ax = plt.subplots(nrows=len(pop_measure))
     width=.2 #width of violin plots
@@ -122,9 +123,15 @@ def compareDelays_rnai(conditions=['WT'],pulse1=5, pulse2=5, delay=[.5,1,3,5,30]
 
         #solve for the reference (no pre-pulse)
         if pulse2==5:
-            ref = data_of_interest(result_ref.keys(),[cond],['+','_','amp','Eye'])#'WT'#'022421pc2'#
+            ref = data_of_interest(result_ref.keys(),[cond],['+','_','amp','Eye','1F'])#'WT'#'022421pc2'#
+            if control_rnai and cond=='WT':
+                ref = ref + data_of_interest(result_ref.keys(),['cntrl'],['+','_','amp','Eye','1F'])
         else:
-            ref = data_of_interest(result_ref.keys(),[f'{cond}_{pulse2}s'],['+'])
+            ref = data_of_interest(result_ref.keys(),[f'{cond}_{pulse2}s'],['+','1F'])
+            if control_rnai and cond=='WT':
+                ref = ref + data_of_interest(result_ref.keys(),[f'cntrl_{pulse2}s'],['+','_','amp','Eye','1F'])
+
+
         print(ref)
         xp_ref = result_ref['tau']
         yp_ref = np.concatenate([result_ref[ref_i] for ref_i in ref])
@@ -162,14 +169,20 @@ def compareDelays_rnai(conditions=['WT'],pulse1=5, pulse2=5, delay=[.5,1,3,5,30]
         #loop through conditions
         for i,d in enumerate(delay):
 
-            test = f'{cond}_{pulse1}s{pulse2}s_{d}mDelay'#f'WT_{pulse1}s{pulse2}s_{d}mDelay'
+            test = [f'{cond}_{pulse1}s{pulse2}s_{d}mDelay']#f'WT_{pulse1}s{pulse2}s_{d}mDelay'
             if d<1:
-                test = f'{cond}_{pulse1}s{pulse2}s_{int(d*60)}sDelay'
-            test = data_of_interest(result.keys(),[test],[])
+                test = [f'{cond}_{pulse1}s{pulse2}s_{int(d*60)}sDelay']
+            if control_rnai and cond=='WT':
+                if d>=1:
+                    test = test + [f'cntrl_{pulse1}s{pulse2}s_{d}mDelay']
+                else:
+                    test = test + [f'cntrl_{pulse1}s{pulse2}s_{int(d*60)}sDelay']
+
+            test = data_of_interest(result.keys(),test,['_24h']+['081222cntrl_5s5s_1mDelay','081222cntrl_5s5s_2mDelay','081222cntrl_5s5s_3mDelay',])
             print(test)
             xp = result['tau']
             yp = np.concatenate([result[test_i]['secondary'] for test_i in test])
-
+            print(f'n={yp.shape[0]}')
             #calculate population based measures
             for n_m, M in enumerate(pop_measure):
                 loc_ref=np.argmin(xp_ref**2)
@@ -196,7 +209,6 @@ def compareDelays_rnai(conditions=['WT'],pulse1=5, pulse2=5, delay=[.5,1,3,5,30]
                 else:
                    sig_sense = False
                    delta_sense = dist-ref_dist[i]
-                   print(np.percentile(delta_sense,(100-conf_interval)/2),np.percentile(delta_sense,100-(100-conf_interval)/2))
                    if np.percentile(delta_sense,(100-conf_interval)/2)>0 or np.percentile(delta_sense,100-(100-conf_interval)/2)<0:
                        sig_sense=True
 
@@ -408,7 +420,7 @@ def compareFirstPulse(pulse1=[1,5,10], pulse2=5, delay=3,
             test = f'WT_{p1}s{pulse2}s_{int(delay*60)}sDelay'
         xp = result['tau']
         yp = result[test]['secondary']
-
+        print(f'n={yp.shape[0]}')
         #calculate population based measures
         for n_m, M in enumerate(pop_measure):
             loc_ref=np.argmin(xp_ref**2)
@@ -482,6 +494,7 @@ def regeneration_traces(condition, ref, n_boot=1e3, conf_interval=99,
         if count>=ax.size: continue
         c = plt.cm.cool(count/len(ax))
         yp = np.concatenate(data[t:t+pool])
+        print(f'n={yp.shape[0]}')
         y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
         ax[count].plot(xp,y,c=c)
         ax[count].fill_between(xp,*rng,alpha=.2,color=c,lw=0,

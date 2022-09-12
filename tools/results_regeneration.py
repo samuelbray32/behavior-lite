@@ -75,7 +75,10 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median,whole_re
             y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
 
         for j in range(len (result[(data[i])])):
-            xp = result['tau']
+            sh=0
+            if '30s' in data[i]: sh=.5
+            if '5s' in data[i]: sh=5/60
+            xp = result['tau']-sh
             yp_=(result[data[i]][j])
             if yp_.size==0:
                 continue
@@ -87,7 +90,7 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median,whole_re
                 if len(result[ref[i]])<j: continue
                 yp=(result_ref[ref[i]][j])
                 y,rng = bootstrap_traces(yp,n_boot=n_boot,statistic=statistic)
-            xp_ref = result_ref['tau']
+            xp_ref = result_ref['tau']-sh
             ax[j,i].plot(xp_ref,y,color='grey',zorder=-1)
             ax[j,i].fill_between(xp_ref,*rng,alpha=.3,edgecolor=None,facecolor='grey',zorder=-2)
 
@@ -109,9 +112,7 @@ def rnai_response_regen(interest,exclude,n_boot=1e3,statistic=np.median,whole_re
                 ax[j,i].plot(x_sig,bott-y_sig,**box_keys)
                 ax[j,i].plot([ind_sig[0],ind_sig[0]],[bott[0],bott[0]-y_sig],**box_keys)
                 ax[j,i].plot([10,10],[bott[0],bott[0]-y_sig],**box_keys)
-            sh=0
-            if '30s' in data[i]: sh=.5
-            if '5s' in data[i]: sh=5/60
+
             ax[j,i].fill_between([-sh,0,],[-1,-1],[10,10],facecolor='thistle',alpha=.3,zorder=-20)
             ax[j,i].spines['top'].set_visible(False)
             ax[j,i].spines['right'].set_visible(False)
@@ -166,10 +167,11 @@ def merge_regenerations(data,ref=None,day=None,conf_interval=99,n_boot=1e3,stat_
 #     ref_name = 'data/LDS_response_rnai.pickle'
     with open(ref_name,'rb') as f:
             result_ref = pickle.load(f)
-    print(ref_name)
-    print(result_ref.keys())
+
+    # print(result_ref.keys())
     fig, ax = plt.subplots(nrows=9,sharex=True,sharey=True,figsize=(4,16))
     xx_ref=(result_ref[ref])
+    print(ref_name,xx_ref.shape[0])
     if n_boot>1:
         yy_ref,rng_ref = bootstrap_traces(xx_ref,statistic=np.median,n_boot=n_boot,
                                           conf_interval=conf_interval)
@@ -187,6 +189,7 @@ def merge_regenerations(data,ref=None,day=None,conf_interval=99,n_boot=1e3,stat_
             xx.append((result[dat][j-d[i]]))
         if len(xx)==0: continue
         xx = np.concatenate(xx)
+        print(j,xx.shape[0])
         if xx.size==0: continue
         if n_boot>1:
             yy,rng = bootstrap_traces(xx,statistic=np.median,n_boot=n_boot,
@@ -330,7 +333,8 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
         c = plt.cm.Set1(i/9)
 
         if type(data[i]) is str:
-            yp_=(result[data[i]][dpa+day_shift[i]])
+            yp_=(result[data[i]][dpa-day_shift[i]])
+            label_name = data[i]
         else:
             yp_ = []
             for j in range(len(data[i])):
@@ -342,10 +346,11 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
 #                     print(d_sh)
                 yp_.append(result[data[i][j]][dpa-d_sh])
             yp_ = np.concatenate(yp_,axis=0)
+            label_name=data[i][0]
         if yp_.size==0:
             continue
         y_,rng_ = bootstrap_traces(yp_,n_boot=n_boot,statistic=statistic)
-        ax[0].plot(xp,y_,label=f'{data[i]} ({yp_.shape[0]})', color=c)
+        ax[0].plot(xp,y_,label=f'{label_name} ({yp_.shape[0]})', color=c)
         ax[0].fill_between(xp,*rng_,alpha=.3,edgecolor=None,facecolor=c)
         #Do a time-dependent test on the reference and current condition
         loc=np.argmin(xp**2)
@@ -409,7 +414,7 @@ def regen_single_day(data,ref=None,dpa=0,n_boot=1e3,statistic=np.median,
                                                n_boot=n_boot,conf_interval=conf_interval)
             x_sig = xp[ind_sig]
             y_sig = .1*(ylim[1]-ylim[0])
-            bott = np.zeros_like(x_sig)+ylim[1]-2*y_sig
+            bott = np.zeros_like(x_sig)+ylim[1]-y_sig
             c='darkgoldenrod'
             ax[0].fill_between(x_sig,bott,bott-y_sig*time_sig,
                 facecolor=c,alpha=.4)
@@ -702,7 +707,7 @@ def excess_activity_regeneration_v2(n_boot=1e3,statistic=np.median,
                         response[init+i] = np.append(response[init+i],dat,axis=0)
 
             response_pool = [np.concatenate(response[i:i+pool]) for i in range(len(response))]
-
+            print('r_pool',response_pool[0].shape)
 
             tau = result['tau'].copy()
             if sh:
@@ -1043,5 +1048,167 @@ def excess_activity_regeneration_v072722(interest=[],exclude=[],n_boot=1e3,stati
     plt.ylabel('hpa')
     plt.legend()
     # plt.ylabel(f'log10 [integrated activity 0-{isi/120} min] / [wholeworm value]')
+
+    return fig, ax
+
+
+##############################################################################
+def excess_activity_regeneration_v081022(n_boot=1e3,statistic=np.median,
+                               integrate=10*120,pool=12,color_scheme=None,
+                                conf_interval=99):
+    fig,ax=plt.subplots(ncols=2,figsize=(12,8), gridspec_kw={'width_ratios': [3,1]})
+    interest=[]
+    exclude=[]
+    name = 'data/LDS_response_regen_indPulse.pickle'
+    with open(name,'rb') as f:
+        result = pickle.load(f)
+    to_plot = ['WT_8hpa_30s2h','WT_8hpa_10s2h','WT_8hpa_5s2h','WT_8hpa_1s2h']
+    to_plot = [('WT_8hpa_30s2h','100220v2022_78hpa_30s2h'),
+               ('WT_8hpa_10s2h','070622WT_72hpa_10s2h'),
+               ('WT_8hpa_5s2h','110521v2022_72hpa_5s2h'),#'WT_72hpa_5s2h'),
+                ('WT_8hpa_1s2h','WT_72hpa_1s2h')]
+#     to_plot = [('WT_8hpa_5s2h',),#'WT_72hpa_5s2h'),
+#                ('WT_8hpa_5s2h','WT_72hpa_5s2h'),]
+    to_plot.reverse()
+    to_plot.extend(data_of_interest(result.keys(),interest,exclude))
+
+    subtract_ref=True #has to be for this analysis
+    reference = []
+    if subtract_ref:
+        ref_name = 'data/LDS_response_uvRange.pickle'
+        with open(ref_name,'rb') as f:
+            result_ref = pickle.load(f)
+
+    max_t = 200
+    isi = integrate
+    integrate = isi
+    pulse_list = [0,]
+    sh = []
+
+    n_pulse=len(pulse_list)
+    # fig, ax = plt.subplots(nrows=n_pulse,sharex=True,)
+    # if n_pulse==1:
+    #     ax=[ax]
+    x_names = []
+    for ii,cond in enumerate(to_plot):
+        #print(cond)
+        excess_start = []
+        excess_end = []
+        y_all = []
+        from tqdm import tqdm
+        #define reference
+        if '5s2h' in cond[0]:
+            response = result_ref['WT']
+            x_names.append('5')
+        else:
+            if 'hpa_' in cond[0]:
+                x_st = cond[0].find('hpa_')
+            else:
+                x_st = cond[0].find('hpi_')
+            x_en = cond[0][x_st:].find('s')
+            response = result_ref['WT_'+cond[0][x_st+4:x_st+x_en+1]]
+            x_names.append(cond[0][x_st+4:x_st+x_en+1])
+#                 response = result_ref[reference[ii]]
+
+        tau = result_ref['tau'].copy()
+        if sh:
+            tau -= sh[ii]
+        pulse=0
+        loc = np.argmin(result_ref['tau']**2)
+        from .bootstrapTest import bootstrap
+        from .measurements import totalResponse_pop as M
+        # y,rng,sig,dist = bootstrap_diff(response[:,loc:loc+10*120],response[:,loc:loc+10*120],n_boot=1e3,statistic=M,
+        #                                        conf_interval=conf_interval,return_samples=True)
+        # plt.plot([0,210],[y,y],c='grey')
+        # plt.fill_between([0,210],[rng[0],rng[0]],[rng[1],rng[1]],facecolor='grey',alpha=.3)
+        response_ref = response.copy()
+        loc_ref = loc.copy()
+        # y_ref = y.copy()
+
+
+        dist_list = []
+        t_plot = []
+
+        y = []
+        lo = []
+        hi = []
+        response = result[cond[0]]['data']
+        if len(cond)>1:
+            init = int((result[cond[1]]['initial']-result[cond[0]]['initial'])/2)
+            print('init',init)
+            #print(result[cond[1]]['initial'],result[cond[0]]['initial'], init)
+            for i,dat in enumerate(result[cond[1]]['data']):
+                if i+init>=len(response):
+                    response.append(dat)
+                else:
+                    response[init+i] = np.append(response[init+i],dat,axis=0)
+
+        response_pool = [np.concatenate(response[i:i+pool]) for i in range(len(response))]
+        print('r_pool',response_pool[0].shape)
+
+        tau = result['tau'].copy()
+        loc= np.argmin(tau**2)
+        if sh:
+            tau -= sh[ii]
+#                 data = bootstrapTest('data', response_pool, tau=tau,
+#                                       n_pulse=max(pulse_list)+1, isi=isi,
+#                                       integrate_time=integrate,experiment_list=None)
+#                 for t in range(min(max_t,len(response))):
+#                     y_t, rng = data.canonical_estimate([t,pulse],sample_size=None,
+#                                                        statistic=statistic,n_boot=1)
+#                     y.append(y_t)
+#                     t_plot.append(t)
+#                 t_plot = np.array(t_plot) * result[cond[0]]['spacing'] + result[cond[0]]['initial']
+        t0 = np.argmin(tau)
+        print(cond)
+        def relative_diff(x,y):
+            return np.subtract(x,y)/y
+        from tools.bootstrapTest import bootstrap_compare
+        for iii,r in enumerate(response_pool[:-pool]):
+            t_plot.append(result[cond[0]]['initial']+iii*result[cond[0]]['spacing'])
+            # y_i, rng_i,significant,dist = bootstrap_diff(r[:,loc:loc+120*15],response_ref[:,loc_ref:loc_ref+15*120],statistic=M,n_boot=n_boot,return_samples=True)
+            y_i, rng_i, dist = bootstrap_compare(r[:,loc:loc+120*15],response_ref[:,loc_ref:loc_ref+15*120],statistic=M,
+                                            n_boot=n_boot,return_samples=True,conf_interval=99,operator=relative_diff)
+            dist_list.append(dist)
+            lo.append(rng_i[0])
+            hi.append(rng_i[1])
+            y.append(y_i)
+        c = plt.cm.viridis(ii/len(to_plot))
+        ax[0].plot(t_plot,y,c=c)
+        ax[0].fill_between(t_plot,lo,hi,alpha=.2,facecolor=c)
+        # plt.fill
+        # break
+        hi=np.array(hi)
+        lo=np.array(lo)
+        try:
+            #first point not significantly below zero
+            start = np.where(hi>=0)[0][0]
+        except:
+            start=np.nan
+        print(start)
+        try:
+            # #last point significantly above 0
+            # end =start + np.where(lo[start:]>0)[0][-1]
+            #first point excess activity ends
+            start2 = np.where(lo>0)[0][0]
+            end =start2 + np.where(lo[start2:]<=0)[0][0]
+        except:
+            end=np.nan
+        if ii==0:
+            ax[1].bar([ii-.2],[8+start*2],color='cornflowerblue',
+                            width=.4,label='end of reduced activity')
+            ax[1].bar([ii+.2],[8+end*2],color='firebrick',
+                            width=.4,label='end of excess activity')
+        else:
+            ax[1].bar([ii-.2],[8+start*2],color='cornflowerblue',width=.4)
+            ax[1].bar([ii+.2],[8+end*2],color='firebrick',width=.4)
+    #labels for time plot
+    ax[0].set_xlabel('hpa')
+    ax[0].set_ylabel('delta response (%)')
+
+    #labels for bar plot
+    plt.xticks(np.arange(len(to_plot)),labels=[cond[0] for cond in to_plot])
+    plt.ylabel('hpa')
+    plt.legend()
 
     return fig, ax
