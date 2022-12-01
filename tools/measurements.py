@@ -30,7 +30,7 @@ def responseDuration(data,thresh=.3):
     x = np.median(data,axis=0)
     try:
         return np.where(x<=thresh)[0][0]/120
-    except: 
+    except:
         if x.mean()>thresh: #if didn't go below threshold in sample window
             return x.size/120
         else:
@@ -109,3 +109,20 @@ def tPeak(data):
     ''' (peak response-first response)'''
     #shape = (samples, pulses)
     return data.argmax(axis=1)/data.shape[1]
+
+'''
+Sin Wave measurements
+'''
+
+def cross_correlate(x,U,tau):
+    xx = np.median(x,axis=0)
+    # xx = xx-xx.mean()
+    # uu = U-U.mean()
+    return np.array([np.cov(xx[t:],U[:-t])[0,1] for t in tau])
+
+def cross_correlate_auto(x,tau):
+    # if len(x.shape)>1:
+    #     x = np.median(x,axis=0)
+    # xx = xx-xx.mean()
+    # uu = U-U.mean()
+    return np.array([np.cov(x[t:],x[:-t])[0,1] for t in tau])
