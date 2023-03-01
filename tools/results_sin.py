@@ -40,7 +40,7 @@ def response_sin(interest_list,exclude,periods =[.5,1,2,3,4,5,10],duration=30,
                           measure_compare=None,ind_measure=[],
                           pop_measure=[],baseline=128,
                           conf_interval=95, stat_testing=True,derivative=False,
-                          visible=False,t_samp=(-3,40)):
+                          visible=False,t_samp=(-3,40),plot_individual=False):
 
     #keys for measure_compare
     DIFFERENCE = ['diff','difference','subtract']
@@ -116,6 +116,9 @@ def response_sin(interest_list,exclude,periods =[.5,1,2,3,4,5,10],duration=30,
                 # y,rng = bootstrap_traces(yp[:,ind_t],n_boot=n_boot,statistic=delta_meas,conf_interval=conf_interval)
 
             c=plt.cm.Set1(ii/9)#'cornflowerblue'
+            if plot_individual:
+                for yp_i in yp:
+                    ax[i,0].plot(xp[ind_t],yp_i[ind_t],alpha=.05,c=c)
             ax[i,0].plot(xp[ind_t],y,lw=1,color=c,zorder=-1,label=f'{interest} {p}m, ({yp.shape[0]})',)
             ax[i,0].fill_between(xp[ind_t],*rng,alpha=.25,color=c,lw=0,edgecolor='None',zorder=-2)
             ax[i,0].plot(xp,result[to_plot[0]]['stim'],c='thistle',zorder=-10)
