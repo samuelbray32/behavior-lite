@@ -40,7 +40,7 @@ def response_sin(interest_list,exclude,periods =[.5,1,2,3,4,5,10],duration=30,
                           measure_compare=None,ind_measure=[],
                           pop_measure=[],baseline=128,
                           conf_interval=95, stat_testing=True,derivative=False,
-                          visible=False):
+                          visible=False,t_samp=(-3,40)):
 
     #keys for measure_compare
     DIFFERENCE = ['diff','difference','subtract']
@@ -63,7 +63,7 @@ def response_sin(interest_list,exclude,periods =[.5,1,2,3,4,5,10],duration=30,
             with open(name,'rb') as f:
                 result = pickle.load(f)
             xp = result['tau']
-            ind_t = np.where((xp>=-3)&(xp<=40))[0]
+            ind_t = np.where((xp>=t_samp[0])&(xp<=t_samp[1]))[0]
             to_plot = data_of_interest(result.keys(),[f'{interest}_{duration}m2h{128}bp'],exclude=exclude)
             if len(to_plot)==0:
                 yp_ref=np.zeros((1,xp.size))
@@ -76,6 +76,7 @@ def response_sin(interest_list,exclude,periods =[.5,1,2,3,4,5,10],duration=30,
                     a.plot(xp[ind_t],y,lw=1,color=c,zorder=-2,)
                     a.fill_between(xp[ind_t],*rng,alpha=.25,color=c,lw=0,edgecolor='None',zorder=-2)
             ind_t_ref = ind_t.copy()
+            xp_ref=xp.copy()
 
         #loop the sin periods
         name = 'data/LDS_response_sinFunc.pickle'
@@ -86,7 +87,7 @@ def response_sin(interest_list,exclude,periods =[.5,1,2,3,4,5,10],duration=30,
         # print(result.keys())
         for i,p in enumerate(periods):
             xp = result['tau']
-            ind_t = np.where((xp>=-3)&(xp<=40))[0]
+            ind_t = np.where((xp>=t_samp[0]-1e-5)&(xp<=t_samp[1]))[0] #SB 03.01.23, added the -1e-5 due to weird float precision issue
             p_name = f'{p}m'
             if p<1 or p%1>0:
                 p_name = f'{int(p*60)}s'
@@ -834,8 +835,114 @@ def response_sin_visUV(interest,exclude=[],phase_shift=[0,],period=(0,3),
     return fig, ax
 
 
+def response_ind_traces(interest_list,exclude,periods =[.5,1,2,3,4,5,10],duration=30,
+                          n_boot=1e3,statistic=np.median,
+                          measure_compare=None,ind_measure=[],
+                          pop_measure=[],baseline=128,
+                          conf_interval=95, stat_testing=True,derivative=False,
+                          visible=False):
+    ''' LW: trying to show individual traces from the sine waves  '''
+    '''Note:
+    order for amp+the other variables: (uv,vis)
+    for constant UV use period 0, amplitude 0 (in the uv slot)'''
 
 
+    #keys for measure_compare
+    DIFFERENCE = ['diff','difference','subtract']
+    RELATIVE = ['relative','rel','divide']
+    #significance marker
+    def mark_sig(ax,loc,c='grey'):
+      ax.scatter([loc,],12,marker='*',color=c)
+    #give extra n_boot to measurements
+    n_boot_meas = max(n_boot, 3e2)
+
+    fig, ax_all=plt.subplots(nrows=len(periods), ncols=1, sharex=True, sharey=True,figsize=(10,2*len(periods)))
+    if len(periods)==1: ax_all = ax_all[None,:]
+    if True: ax_all=ax_all[:,None]
+    ax = ax_all
+
+    for ii,interest in enumerate(interest_list):
+        if ii==0:
+            #step function reference
+            name = 'data/LDS_response_LONG.pickle'
+            with open(name,'rb') as f:
+                result = pickle.load(f)
+            xp = result['tau']
+            ind_t = np.where((xp>=-3)&(xp<=40))[0]
+            to_plot = data_of_interest(result.keys(),[f'{interest}_{duration}m2h{128}bp'],exclude=exclude)
+            if len(to_plot)==0:
+                yp_ref=np.zeros((1,xp.size))
+            else:
+                yp_ref = np.concatenate([result[dat] for dat in to_plot])
+                loc = np.argmin(xp**2)
+                y,rng = bootstrap_traces(yp_ref[:,ind_t],n_boot=n_boot,statistic=statistic,conf_interval=conf_interval)
+                for a in ax[:,0]:
+                    c='grey'
+                    a.plot(xp[ind_t],y,lw=1,color=c,zorder=-2,)
+                    a.fill_between(xp[ind_t],*rng,alpha=.25,color=c,lw=0,edgecolor='None',zorder=-2)
+            ind_t_ref = ind_t.copy()
+
+        #loop the sin periods
+        name = 'data/LDS_response_sinFunc.pickle'
+        if visible:
+            name = 'data/LDS_response_Vis_sinFunc.pickle'
+        with open(name,'rb') as f:
+            result = pickle.load(f)
+        # print(result.keys())
+        for i,p in enumerate(periods):
+            xp = result['tau']
+            ind_t = np.where((xp>=-3)&(xp<=40))[0]
+            p_name = f'{p}m'
+            if p<1 or p%1>0:
+                p_name = f'{int(p*60)}s'
+
+            print(f'{interest}_{duration}m_{p_name}')
+            to_plot = data_of_interest(result.keys(),[f'{interest}_{duration}m_{p_name}'],exclude=exclude)
+            if len(to_plot)==0:
+                continue
+            print(to_plot)
+            xp = result['tau']
+            yp = np.concatenate([result[dat]['data'] for dat in to_plot])
+            # if derivative:
+            #     print(yp[0].shape)
+            #     yp = np.array([calc_delta(yy,derivative) for yy in yp])
+            #     print(yp.shape)
+
+            loc = np.argmin(xp**2)
+            y,rng = bootstrap_traces(yp[:,ind_t],n_boot=n_boot,statistic=statistic,conf_interval=conf_interval)
+            if derivative:
+                True #not interesting results :(
+                # y = np.array([calc_delta(yy,derivative) for yy in y])
+                # rng = np.percentile
+                # def delta_meas(x,axis=0):
+                #     xx = np.median(x,axis=0)
+                #     return calc_delta(xx,derivative)
+                # y,rng = bootstrap_traces(yp[:,ind_t],n_boot=n_boot,statistic=delta_meas,conf_interval=conf_interval)
+
+            c=plt.cm.Set1(ii/9)#'cornflowerblue'
+            ax[i,0].plot(xp[ind_t],y,lw=1,color=c,zorder=-1,label=f'{interest} {p}m, ({yp.shape[0]})',)
+            ax[i,0].fill_between(xp[ind_t],*rng,alpha=.25,color=c,lw=0,edgecolor='None',zorder=-2)
+            ax[i,0].plot(xp,result[to_plot[0]]['stim'],c='thistle',zorder=-10)
+            time_sig = timeDependentDifference(yp[:,ind_t],yp_ref[:,ind_t_ref],n_boot=n_boot,conf_interval=conf_interval)
+            x_sig = xp[ind_t]#np.arange(0,10,1/120)
+            y_sig = .1
+        #                         if len(powers)-1>1:
+        #                             y_sig=2*y_sig/len(interest_list)
+            j=0
+            bott = np.zeros_like(x_sig)+1.5 - (j-1)*y_sig
+            ax[i,0].fill_between(x_sig,bott,bott-y_sig*time_sig,
+                facecolor=c,alpha=.4)
+            box_keys={'lw':1, 'c':'k'}
+            ax[i,0].plot(x_sig,bott,**box_keys)
+            ax[i,0].plot(x_sig,bott-y_sig,**box_keys)
+            # ax[i,0].plot([ind_sig[0],ind_sig[0]],[bott[0],bott[0]-y_sig],**box_keys)
+            # ax[i,0].plot([ind_sig[1],ind_sig[1]],[bott[0],bott[0]-y_sig],**box_keys)
+            # ax[i,0].set_title(f'{dur} min')
+            ax[i,0].set_xlim(-3,40)
+            ax[i,0].set_ylim(0,1.6)
+            ax[i,0].legend()
+    ax[-1,0].set_xlabel('time (min)')
+    return fig,ax
 
 
 
